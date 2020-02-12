@@ -16,13 +16,13 @@ if ($argc == 2 && $argv[1] == "--help") {
 $xml = new SimpleXMLElement(ROOT);
 $line_number = 0;
 
-while(($line = fgets(STDIN))) {
+while($line = fgets(STDIN)) {
     $matches = [];
     if (preg_match('/(.*)(?=#)/', $line, $matches)) {
-        $line = htmlspecialchars(trim($matches[0]));
+        $line = trim($matches[0]);
     } else {
-        $line = htmlspecialchars(trim($line));
-    };
+        $line = trim($line);
+    }
     
     if (strlen($line) == 0) {
         continue;
@@ -246,7 +246,6 @@ function return_error($err) {
         break;
         default:
             exit(99);
-
     }
     exit($err);
 }
