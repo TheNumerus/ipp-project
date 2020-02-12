@@ -1,14 +1,16 @@
 <?php
 
 const ROOT = '<?xml version="1.0" encoding="UTF-8"?><program language="IPPcode20"></program>';
+const ERR_ARG = 10;
+const ERR_HEADER = 21;
+const ERR_OPCODE = 22;
+const ERR_OTHER = 23;
 
 if ($argc == 2 && $argv[1] == "--help") {
     print_help();
     exit(0);
 } else if ($argc != 1) {
-    // error
-    fprintf(STDERR, "Invalid combnination of arguments.");
-    exit(10);
+    return_error(ERR_HEADER);
 }
 
 $xml = new SimpleXMLElement(ROOT);
@@ -39,43 +41,93 @@ while(($line = fgets(STDIN))) {
         $child->addAttribute("order", $line_number);
         switch ($parts[0]) {
             case 'DEFVAR':
+            case 'POPS':
                 check_var($parts[1], $child, 1);
+                if (count($parts) != 2) {
+                    return_error(ERR_OPCODE);
+                }
             break;
             case 'MOVE':
+            case 'INT2CHAR':
+            case 'STRLEN':
+            case 'TYPE':
                 check_var($parts[1], $child, 1);
                 check_symb($parts[2], $child, 2);
+                if (count($parts) != 3) {
+                    return_error(ERR_OPCODE);
+                }
             break;
             case 'WRITE':
+            case 'PUSHS':
+            case 'EXIT':
+            case 'DPRINT':
                 check_symb($parts[1], $child, 1);
+                if (count($parts) != 2) {
+                    return_error(ERR_OPCODE);
+                }
             break;
             case 'CONCAT':
             case 'GETCHAR':
             case 'SETCHAR':
+            case 'ADD':
+            case 'SUB':
+            case 'MUL':
+            case 'IDIV':
+            case 'LT':
+            case 'GT':
+            case 'EQ':
+            case 'AND':
+            case 'OR':
+            case 'NOT':
+            case 'STR2INT':
                 check_var($parts[1], $child, 1);
                 check_symb($parts[2], $child, 2);
                 check_symb($parts[3], $child, 3);
+                if (count($parts) != 4) {
+                    return_error(ERR_OPCODE);
+                }
             break;
             case 'JUMPIFNEQ':
             case 'JUMPIFEQ':
                 check_label($parts[1], $child, 1);
                 check_symb($parts[2], $child, 2);
                 check_symb($parts[3], $child, 3);
+                if (count($parts) != 4) {
+                    return_error(ERR_OPCODE);
+                }
             break;
             case 'CALL':
             case 'LABEL':
             case 'JUMP':
                 check_label($parts[1], $child, 1);
+                if (count($parts) != 2) {
+                    return_error(ERR_OPCODE);
+                }
+            break;
+            case 'READ':
+                check_var($parts[1], $child, 1);
+                check_type($parts[2], $child, 2);
+                if (count($parts) != 3) {
+                    return_error(ERR_OPCODE);
+                }
+            break;
+            case 'PUSHFRAME':
+            case 'POPFRAME':
+            case 'CREATEFRAME':
+            case 'RETURN':
+            case 'BRAKE':
+                if (count($parts) != 1) {
+                    return_error(ERR_OPCODE);
+                }
             break;
             default:
-                fprintf(STDERR, "Corrupted or unknown opcode.");
-                exit(21);
+                return_error(ERR_OPCODE);
         }
         
         $child->addAttribute("opcode", $parts[0]);
     } else {
         if ($parts[0] != ".IPPcode20") {
-            fprintf(STDERR, "Corrupted or missing header.");
-            exit(21);
+            return_error(ERR_HEADER);
         }
     }
     //var_dump($parts);
@@ -106,8 +158,7 @@ function check_var($var, $parent, $num) {
         $parent->$arg = $var;
         return;
     }
-    fprintf(STDERR, "Other lexical or syntax error.");
-    exit(23);
+    return_error(ERR_OTHER);
 }
 
 function check_symb($symb, $parent, $num) {
@@ -127,8 +178,7 @@ function check_symb($symb, $parent, $num) {
                 $child->addAttribute("type", "bool");
                 $arg = "arg" . $num;
                 if (!preg_match('/@(true|false)/', $symb, $str_match)) {
-                    fprintf(STDERR, "Other lexical or syntax error.");
-                    exit(23);
+                    return_error(ERR_OTHER);
                 }
                 $parent->$arg = $str_match[1];
             break;
@@ -137,8 +187,7 @@ function check_symb($symb, $parent, $num) {
                 $child->addAttribute("type", "int");
                 $arg = "arg" . $num;
                 if (!preg_match('/@(\-?[0-9]+)/', $symb, $str_match)) {
-                    fprintf(STDERR, "Other lexical or syntax error.");
-                    exit(23);
+                    return_error(ERR_OTHER);
                 }
                 $parent->$arg = $str_match[1];
             break;
@@ -147,18 +196,15 @@ function check_symb($symb, $parent, $num) {
                 $child->addAttribute("type", "nil");
                 $arg = "arg" . $num;
                 if (!preg_match('/@(nil)/', $symb, $str_match)) {
-                    fprintf(STDERR, "Other lexical or syntax error.");
-                    exit(23);
+                    return_error(ERR_OTHER);
                 }
                 $parent->$arg = "nil";
             break;
             default:
-                fprintf(STDERR, "Other lexical or syntax error.");
-                exit(23);
+            return_error(ERR_OTHER);
         }
     } else {
-        fprintf(STDERR, "Other lexical or syntax error.");
-        exit(23);
+        return_error(ERR_OTHER);
     }
 }
 
@@ -170,6 +216,37 @@ function check_label($label, $parent, $num) {
         $parent->$arg = $label;
         return;
     }
-    fprintf(STDERR, "Other lexical or syntax error.");
-    exit(23);
+    return_error(ERR_OTHER);
+}
+
+function check_type($type, $parent, $num) {
+    if (preg_match('/^(string|int|bool)$/', $type)) {
+        $child = $parent->addChild("arg" . $num);
+        $child->addAttribute("type", "type");
+        $arg = "arg" . $num;
+        $parent->$arg = $type;
+        return;
+    }
+    return_error(ERR_OTHER);
+}
+
+function return_error($err) {
+    switch ($err) {
+        case ERR_ARG:
+            fprintf(STDERR, "Invalid combnination of arguments.");
+        break;
+        case ERR_HEADER:
+            fprintf(STDERR, "Corrupted or missing header.");
+        break;
+        case ERR_OPCODE:
+            fprintf(STDERR, "Corrupted or unknown opcode.");
+        break;
+        case ERR_OTHER:
+            fprintf(STDERR, "Other lexical or syntax error.");
+        break;
+        default:
+            exit(99);
+
+    }
+    exit($err);
 }
