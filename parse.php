@@ -34,7 +34,7 @@ while($line = fgets(STDIN)) {
 
     //var_dump($line);
 
-    $parts = explode(' ', $line);
+    $parts = preg_split('/\s/', $line);
 
     if ($line_number != 0) {
         $child = $xml->addChild("instruction");
