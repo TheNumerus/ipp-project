@@ -19,7 +19,7 @@ function main() {
         print_help();
         exit(0);
     } else {
-        $stats_opt = parse_args();
+        $stats_opt = StatsOpt::parse();
     }
 
     $xml = new SimpleXMLElement(ROOT);
@@ -46,6 +46,9 @@ function main() {
         }
 
         $parts = preg_split('/\s/', $line);
+        $parts = array_values(array_filter($parts, function ($item) {
+            return strlen($item) != 0;
+        }));
 
         if (!$first_line) {
             $child = $xml->addChild("instruction");
@@ -197,38 +200,29 @@ function check_var(string $var, $parent, int $num) {
 function check_symb(string $symb, $parent, int $num) {
     if (preg_match('/^(GF|TF|LF)@/', $symb)) {
         check_var($symb, $parent, $num);
-    } else if (preg_match('/^(int|bool|string|nil)/', $symb, $matches)) {
-        switch ($matches[0]) {
+    } else if (preg_match('/^(int|bool|string|nil)@/', $symb, $matches)) {
+        $child = $parent->addChild("arg" . $num);
+        $child->addAttribute("type", $matches[1]);
+        $arg = "arg" . $num;
+        switch ($matches[1]) {
             case "string":
-                $child = $parent->addChild("arg" . $num);
-                $child->addAttribute("type", "string");
-                $arg = "arg" . $num;
                 preg_match('/@([\S]*)/', $symb, $str_match);
                 $parent->$arg = $str_match[1];
             break;
             case "bool":
-                $child = $parent->addChild("arg" . $num);
-                $child->addAttribute("type", "bool");
-                $arg = "arg" . $num;
-                if (!preg_match('/@(true|false)/', $symb, $str_match)) {
+                if (!preg_match('/@(true|false)$/', $symb, $str_match)) {
                     return_error(ERR_OTHER);
                 }
                 $parent->$arg = $str_match[1];
             break;
             case "int":
-                $child = $parent->addChild("arg" . $num);
-                $child->addAttribute("type", "int");
-                $arg = "arg" . $num;
                 if (!preg_match('/@(\-?[0-9]+)/', $symb, $str_match)) {
                     return_error(ERR_OTHER);
                 }
                 $parent->$arg = $str_match[1];
             break;
             case "nil":
-                $child = $parent->addChild("arg" . $num);
-                $child->addAttribute("type", "nil");
-                $arg = "arg" . $num;
-                if (!preg_match('/@(nil)/', $symb, $str_match)) {
+                if (!preg_match('/@(nil)$/', $symb, $str_match)) {
                     return_error(ERR_OTHER);
                 }
                 $parent->$arg = "nil";
@@ -286,31 +280,6 @@ function return_error(int $err) {
     exit($err);
 }
 
-function parse_args(): ?StatsOpt {
-    global $argv;
-    global $argc;
-    if (preg_match("/^\-\-stats=(\S*)$/", $argv[1], $matches)) {
-        if ( strlen($matches[1]) == 0) {
-            return_error(ERR_ARG);
-        }
-        $opt = new StatsOpt();
-        $opt->filepath = $matches[1];
-        $opt->options = [];
-        for ($i = 2; $i < $argc; $i++) {
-            if (preg_match("/^\-\-(loc|comments|jumps|labels)$/", $argv[$i], $arg_matches)) {
-                $opt->options[] = $arg_matches[1];
-            } else {
-                return_error(ERR_ARG);
-            }
-        }
-        return $opt;
-    } else if ($argc == 1) {
-        return null;
-    } else {
-        return_error(ERR_ARG);
-    }
-}
-
 class Stats {
     public int $comments = 0;
     public int $loc = 0;
@@ -335,4 +304,32 @@ class Stats {
 class StatsOpt {
     public string $filepath;
     public array $options;
+
+    public static function parse(): ?StatsOpt {
+        global $argv;
+        global $argc;
+        if ($argc == 1) {
+            return null;
+        }
+        if (preg_match("/^\-\-stats=(\S*)$/", $argv[1], $matches)) {
+            if (strlen($matches[1]) == 0) {
+                return_error(ERR_ARG);
+            }
+            $opt = new StatsOpt();
+            $opt->filepath = $matches[1];
+            $opt->options = [];
+            for ($i = 2; $i < $argc; $i++) {
+                if (preg_match("/^\-\-(loc|comments|jumps|labels)$/", $argv[$i], $arg_matches)) {
+                    $opt->options[] = $arg_matches[1];
+                } else {
+                    return_error(ERR_ARG);
+                }
+            }
+            return $opt;
+        } else if ($argc == 1) {
+            return null;
+        } else {
+            return_error(ERR_ARG);
+        }
+    }
 }
