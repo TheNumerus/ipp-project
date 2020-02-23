@@ -6,6 +6,47 @@ const ERR_OUTPUT = 12;
 const ERR_HEADER = 21;
 const ERR_OPCODE = 22;
 const ERR_OTHER = 23;
+const ERR_INTERNAL = 99;
+const OPCODE_ARGS = [
+    'RETURN' =>      [0],
+    'PUSHFRAME' =>   [0],
+    'POPFRAME' =>    [0],
+    'CREATEFRAME' => [0],
+    'BREAK' =>       [0],
+
+    'DEFVAR' => [1, "var"],
+    'POPS' =>   [1, "var"],
+    'WRITE' =>  [1, "symbol"],
+    'PUSHS' =>  [1, "symbol"],
+    'EXIT' =>   [1, "symbol"],
+    'DPRINT' => [1, "symbol"],
+    'LABEL' =>  [1, "label"],
+    'CALL' =>   [1, "label"],
+    'JUMP' =>   [1, "label"],
+
+    'MOVE' =>     [2, "var", "symbol"],
+    'INT2CHAR' => [2, "var", "symbol"],
+    'STRLEN' =>   [2, "var", "symbol"],
+    'TYPE'=>      [2, "var", "symbol"],
+    'READ' =>     [2, "var", "type"],
+
+    'CONCAT' =>    [3, "var", "symbol", "symbol"],
+    'GETCHAR' =>   [3, "var", "symbol", "symbol"],
+    'SETCHAR' =>   [3, "var", "symbol", "symbol"],
+    'ADD' =>       [3, "var", "symbol", "symbol"],
+    'SUB' =>       [3, "var", "symbol", "symbol"],
+    'MUL' =>       [3, "var", "symbol", "symbol"],
+    'IDIV' =>      [3, "var", "symbol", "symbol"],
+    'LT' =>        [3, "var", "symbol", "symbol"],
+    'GT' =>        [3, "var", "symbol", "symbol"],
+    'EQ' =>        [3, "var", "symbol", "symbol"],
+    'AND' =>       [3, "var", "symbol", "symbol"],
+    'OR' =>        [3, "var", "symbol", "symbol"],
+    'NOT' =>       [3, "var", "symbol", "symbol"],
+    'STR2INT' =>   [3, "var", "symbol", "symbol"],
+    'JUMPIFNEQ' => [3, "label", "symbol", "symbol"],
+    'JUMPIFEQ' =>  [3, "label", "symbol", "symbol"],
+];
 
 main();
 
@@ -15,6 +56,7 @@ function main() {
 
     $stats_opt;
     
+    // parse arguments
     if ($argc == 2 && $argv[1] == "--help") {
         print_help();
         exit(0);
@@ -28,141 +70,96 @@ function main() {
     $stats = new Stats();
 
     while($line = fgets(STDIN)) {
-        $matches = [];
-        if (preg_match('/(.*)(?=#)/', $line, $matches)) {
+        // if comment is found, cut it, and cut whitespace on both sides
+        if (preg_match('/(^[^#]*)(?=#)/', $line, $matches)) {
             $line = trim($matches[0]);
             $stats->comments++;
         } else {
             $line = trim($line);
         }
         
+        // skip empty lines
         if (strlen($line) == 0) {
             continue;
         }
 
+        // if line is comment only, then skip it
         if ($line[0] == '#') {
             $stats->comments++;
             continue;
         }
 
+        // seperate line into parts divided by whitespace
         $parts = preg_split('/\s/', $line);
-        $parts = array_values(array_filter($parts, function ($item) {
-            return strlen($item) != 0;
-        }));
+        $parts = array_values(array_filter($parts, 'strlen'));
 
-        if (!$first_line) {
-            $child = $xml->addChild("instruction");
-            $child->addAttribute("order", $stats->loc + 1);
-            switch ($parts[0]) {
-                case 'DEFVAR':
-                case 'POPS':
-                    check_var($parts[1], $child, 1);
-                    if (count($parts) != 2) {
-                        return_error(ERR_OPCODE);
-                    }
-                break;
-                case 'MOVE':
-                case 'INT2CHAR':
-                case 'STRLEN':
-                case 'TYPE':
-                    check_var($parts[1], $child, 1);
-                    check_symb($parts[2], $child, 2);
-                    if (count($parts) != 3) {
-                        return_error(ERR_OPCODE);
-                    }
-                break;
-                case 'WRITE':
-                case 'PUSHS':
-                case 'EXIT':
-                case 'DPRINT':
-                    check_symb($parts[1], $child, 1);
-                    if (count($parts) != 2) {
-                        return_error(ERR_OPCODE);
-                    }
-                break;
-                case 'CONCAT':
-                case 'GETCHAR':
-                case 'SETCHAR':
-                case 'ADD':
-                case 'SUB':
-                case 'MUL':
-                case 'IDIV':
-                case 'LT':
-                case 'GT':
-                case 'EQ':
-                case 'AND':
-                case 'OR':
-                case 'NOT':
-                case 'STR2INT':
-                    check_var($parts[1], $child, 1);
-                    check_symb($parts[2], $child, 2);
-                    check_symb($parts[3], $child, 3);
-                    if (count($parts) != 4) {
-                        return_error(ERR_OPCODE);
-                    }
-                break;
-                case 'JUMPIFNEQ':
-                case 'JUMPIFEQ':
-                    check_label($parts[1], $child, 1);
-                    check_symb($parts[2], $child, 2);
-                    check_symb($parts[3], $child, 3);
-                    if (count($parts) != 4) {
-                        return_error(ERR_OPCODE);
-                    }
-                    $stats->jumps++;
-                break;
-                case 'LABEL':
-                    check_label($parts[1], $child, 1);
-                    if (count($parts) != 2) {
-                        return_error(ERR_OPCODE);
-                    }
-                    $stats->labels++;
-                break;
-                case 'CALL':
-                case 'JUMP':
-                    check_label($parts[1], $child, 1);
-                    if (count($parts) != 2) {
-                        return_error(ERR_OPCODE);
-                    }
-                    $stats->jumps++;
-                break;
-                case 'READ':
-                    check_var($parts[1], $child, 1);
-                    check_type($parts[2], $child, 2);
-                    if (count($parts) != 3) {
-                        return_error(ERR_OPCODE);
-                    }
-                break;
-                case 'PUSHFRAME':
-                case 'POPFRAME':
-                case 'CREATEFRAME':
-                case 'BREAK':
-                    if (count($parts) != 1) {
-                        return_error(ERR_OPCODE);
-                    }
-                break;
-                case 'RETURN':
-                    if (count($parts) != 1) {
-                        return_error(ERR_OPCODE);
-                    }
-                    $stats->jumps++;
-                break;
-                default:
-                    return_error(ERR_OPCODE);
-            }
-            
-            $child->addAttribute("opcode", $parts[0]);
-            $stats->loc++;
-        } else {
+        if ($first_line) {
+            // handle header
             if ($parts[0] != ".IPPcode20") {
                 return_error(ERR_HEADER);
             }
             $first_line = false;
+        } else {
+            // create child node
+            $child = $xml->addChild("instruction");
+            $child->addAttribute("order", $stats->loc + 1);
+            $child->addAttribute("opcode", $parts[0]);
+
+            // check if known opcode
+            if (!array_key_exists($parts[0], OPCODE_ARGS)) {
+                return_error(ERR_OPCODE);
+            }
+
+            // check correct number of arguments
+            if ((count($parts) - 1) != OPCODE_ARGS[$parts[0]][0]) {
+                return_error(ERR_OPCODE);
+            }
+
+            $stats->loc++;
+
+            // parse opcode and check for correctness
+            for($i = 1; $i <= OPCODE_ARGS[$parts[0]][0]; $i++) {
+                switch (OPCODE_ARGS[$parts[0]][$i]) {
+                    case "var":
+                        check_var($parts[$i], $child, $i);
+                    break;
+                    case "symbol":
+                        check_symb($parts[$i], $child, $i);
+                    break;
+                    case "label":
+                        check_label($parts[$i], $child, $i);
+                    break;
+                    case "type":
+                        check_type($parts[$i], $child, $i);
+                    break;
+                    default:
+                        return_error(ERR_INTERNAL);
+                    break;
+                }
+            }
+
+            // count special features
+            switch ($parts[0]) {
+                case 'LABEL':
+                    $stats->labels++;
+                break;
+                case 'CALL':
+                case 'JUMP':
+                case 'RETURN':
+                case 'JUMPIFNEQ':
+                case 'JUMPIFEQ':
+                    $stats->jumps++;
+                break;
+                default:
+                break;
+            }
         }
     }
 
+    // write stats to file
     $stats->print($stats_opt);
 
+    // write xml to stdout
     echo $xml->asXML();
 }
 
@@ -184,10 +181,12 @@ function print_help() {
     echo "21 - Corrupted or missing header in IPPcode20 source file\n";
     echo "22 - Corrupted or unknown opcode in IPPcode20 source file\n";
     echo "23 - Other lexical or syntax error in IPPcode20 source file\n";
+    echo "99 - Internal error in the script";
 }
 
 function check_var(string $var, $parent, int $num) {
-    if (preg_match('/^(GF|TF|LF)@[_\-$&%*!?a-zA-Z][_\-$&%*!?\w]*/', $var)) {
+    //check correct variable format
+    if (preg_match('/^(GF|TF|LF)@[_\-$&%*!?a-zA-Z][\-$&%*!?\w]*$/', $var)) {
         $child = $parent->addChild("arg" . $num);
         $child->addAttribute("type", "var");
         $arg = "arg" . $num;
@@ -198,6 +197,7 @@ function check_var(string $var, $parent, int $num) {
 }
 
 function check_symb(string $symb, $parent, int $num) {
+    //symbol can be variable or constant
     if (preg_match('/^(GF|TF|LF)@/', $symb)) {
         check_var($symb, $parent, $num);
     } else if (preg_match('/^(int|bool|string|nil)@/', $symb, $matches)) {
@@ -206,37 +206,37 @@ function check_symb(string $symb, $parent, int $num) {
         $arg = "arg" . $num;
         switch ($matches[1]) {
             case "string":
-                preg_match('/@([\S]*)/', $symb, $str_match);
-                $parent->$arg = $str_match[1];
+                if (!preg_match('/@([\S]*)$/', $symb, $str_match)) {
+                    return_error(ERR_OTHER);
+                }
             break;
             case "bool":
                 if (!preg_match('/@(true|false)$/', $symb, $str_match)) {
                     return_error(ERR_OTHER);
                 }
-                $parent->$arg = $str_match[1];
             break;
             case "int":
-                if (!preg_match('/@(\-?[0-9]+)/', $symb, $str_match)) {
+                if (!preg_match('/@(\-?[0-9]+)$/', $symb, $str_match)) {
                     return_error(ERR_OTHER);
                 }
-                $parent->$arg = $str_match[1];
             break;
             case "nil":
                 if (!preg_match('/@(nil)$/', $symb, $str_match)) {
                     return_error(ERR_OTHER);
                 }
-                $parent->$arg = "nil";
             break;
             default:
             return_error(ERR_OTHER);
         }
+        $parent->$arg = $str_match[1];
     } else {
         return_error(ERR_OTHER);
     }
 }
 
 function check_label(string $label, $parent, int $num) {
-    if (preg_match('/^[_\-$&%*!?a-zA-Z][_\-$&%*!?\w]*/', $label)) {
+    // label is same as var
+    if (preg_match('/^[_\-$&%*!?a-zA-Z][\-$&%*!?\w]*/', $label)) {
         $child = $parent->addChild("arg" . $num);
         $child->addAttribute("type", "label");
         $arg = "arg" . $num;
@@ -275,6 +275,7 @@ function return_error(int $err) {
             fprintf(STDERR, "Other lexical or syntax error.");
         break;
         default:
+            fprintf(STDERR, "Internal error.");
             exit(99);
     }
     exit($err);
