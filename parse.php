@@ -98,6 +98,10 @@ function main() {
             if ($parts[0] != ".IPPcode20") {
                 return_error(ERR_HEADER);
             }
+            
+            if (count($parts) != 1) {
+                return_error(ERR_HEADER);
+            }
             $first_line = false;
         } else {
             // create child node
