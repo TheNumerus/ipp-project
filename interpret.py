@@ -159,8 +159,25 @@ def check_xml(program):
 class Program:
     def __init__(self, program):
         self.program = sorted(program, key=lambda instr: int(instr.get("order")))
-        self.labels = list(map(lambda x: (x[0] + 1, x[1].find("arg1").text), filter(lambda i: i[1].get("opcode") == "LABEL", enumerate(self.program))))
-        self.ip = 0
+
+        # check duplicate labels
+        labels = list(map(lambda x: (x[1].find("arg1").text, x[0]), filter(lambda i: i[1].get("opcode") == "LABEL", enumerate(self.program))))
+        self.labels = {}
+        for k, v in labels:
+            if k not in self.labels:
+                self.labels[k] = v
+            else:
+                Error.ERR_SEMANTIC.exit()
+        
+        self.global_frame = {}
+        self.frames = []
+        self.temp_frame = {}
+
+        self.handlers = {
+            "CREATEFRAME": self.create_frame
+        }
+
+        self.ip = 1
     
     def __iter__(self):
         return self
@@ -168,28 +185,37 @@ class Program:
     def __next__(self):
         if self.ip >= len(self.program):
             raise StopIteration
-        self.ip += 1
+        # self.ip += 1
         return self.program[self.ip - 1]
 
-def execute(program, inp):
-    global_frame = {}
-    frames = []
-    prog = Program(program)
-    print(prog.labels)
-    for instr in prog:
-        print("opcode: " + instr.get("opcode") + ", order:  " + instr.get("order"))
-        #prog.ip += 1
-        pass
+    def create_frame(self):
+        self.temp_frame = []
+        self.ip += 1
+
+    def execute(self, inp):
+        eprint(self.labels)
+        for instr in self:
+            opcode = instr.get("opcode")
+            eprint("opcode: " + opcode + ", order:  " + instr.get("order"))
+            if opcode not in self.handlers:
+                eprint(opcode + " missing")
+                self.ip += 1
+            else:
+                self.handlers[opcode]()
+                
+            #prog.ip += 1
+            pass
 
 def main():
     inp, src = parse_args()
     code = src.read()
     try:
-        program = ET.fromstring(code)
+        xml = ET.fromstring(code)
     except ET.ParseError:
         Error.ERR_XML_PARSE.exit()   
-    check_xml(program)
-    execute(program, inp)
+    check_xml(xml)
+    program = Program(xml)
+    program.execute(inp)
 
 if __name__ == "__main__":
     main()

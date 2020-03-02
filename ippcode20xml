@@ -36,10 +36,10 @@
         <arg2 type="var">GF@counter</arg2>
         <arg3 type="string">aaa</arg3>
     </instruction>
-    <instruction order="11" opcode="JUMP">
+    <instruction order="12" opcode="JUMP">
         <arg1 type="label">while</arg1>
     </instruction>
-    <instruction order="12" opcode="LABEL">
+    <instruction order="13" opcode="LABEL">
         <arg1 type="label">end</arg1>
     </instruction>
 </program>

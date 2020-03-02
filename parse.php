@@ -210,7 +210,7 @@ function check_symb(string $symb, $parent, int $num) {
         $arg = "arg" . $num;
         switch ($matches[1]) {
             case "string":
-                if (!preg_match('/@(([^\s#@\\]|(\\[0-9]{3}))*)$/', $symb, $str_match)) {
+                if (!preg_match('/@(([^\\s#@\\\\]|\\\\[0-9]{3})*)$/', $symb, $str_match)) {
                     return_error(ERR_OTHER);
                 }
             break;
