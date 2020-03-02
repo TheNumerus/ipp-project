@@ -3,9 +3,12 @@ import xml.etree.ElementTree as ET
 import sys
 import re
 from helper import *
+from copy import copy
 
-def eprint(str: str):
-    print(str, file=sys.stderr)
+def eprint(*args):
+    for arg in args:
+        print(arg, file=sys.stderr, end=" ")
+    print("", file=sys.stderr)
 
 class Error(IntEnum):
     ERR_ARGS = 10
@@ -156,6 +159,37 @@ def check_xml(program):
             if match is None:
                 Error.ERR_XML_STRUCT.exit()
 
+def unescape_string(string):
+    if string is None:
+        return ""
+    i = 0
+    escaped = ""
+    esc = re.compile(r"\\[0-9]{3}")
+    while i <= (len(string) - 4):
+        match = esc.search(string[i:i+4])
+        if match is not None:
+            escaped += chr(int(string[i+1:i+4]))
+            i += 4
+        else:
+            escaped += string[i]
+            i += 1
+    return escaped
+
+class VarType(Enum):
+    BOOL = 0,
+    INT = 1,
+    STRING = 2,
+    NIL = 3,
+    UNDEF = 4
+
+class Var:
+    def __init__(self, var_type: VarType, value):
+        self.var_type = var_type
+        self.value = value
+
+    def __repr__(self):
+        return "VarType={type: " + self.var_type.name + ", value: " + str(self.value) + "}"
+
 class Program:
     def __init__(self, program):
         self.program = sorted(program, key=lambda instr: int(instr.get("order")))
@@ -171,10 +205,15 @@ class Program:
         
         self.global_frame = {}
         self.frames = []
-        self.temp_frame = {}
+        self.temp_frame = None
 
         self.handlers = {
-            "CREATEFRAME": self.create_frame
+            "CREATEFRAME": self.create_frame,
+            "PUSHFRAME": self.push_frame,
+            "POPFRAME": self.pop_frame,
+            "DEFVAR": self.defvar,
+            "MOVE" : self.move,
+            "WRITE": self.write
         }
 
         self.ip = 1
@@ -183,28 +222,133 @@ class Program:
         return self
     
     def __next__(self):
-        if self.ip >= len(self.program):
+        if self.ip > len(self.program):
             raise StopIteration
         # self.ip += 1
         return self.program[self.ip - 1]
 
+    @staticmethod
+    def parse_var(var):
+        scope = var[0:2]
+        name = var[3:]
+        return scope, name
+
+    @staticmethod
+    def parse_symb(symb):
+        symb_type = symb.get("type")
+        symb_val = symb.text
+        return symb_type, symb_val
+
+    def is_var_defined(self, scope, name):
+        if scope == "GF":
+            return name in self.global_frame
+        elif scope == "LF":
+            if len(self.frames) == 0:
+                Error.ERR_FRAME_NOT_FOUND.exit()
+            return name in self.frames[-1]
+        elif scope == "TF":
+            if self.temp_frame == None:
+                Error.ERR_FRAME_NOT_FOUND.exit()
+            return name in self.temp_frame
+        else: 
+            Error.ERR_XML_STRUCT.exit()
+
+    def find_var(self, scope, name) -> Var:
+        if not self.is_var_defined(scope, name):
+            Error.ERR_VAR_NOT_FOUND.exit()
+        
+        if scope == "GF":
+            return self.global_frame[name]
+        elif scope == "LF":
+            return self.frames[-1][name]
+        else:
+            return self.temp_frame[name]
+
     def create_frame(self):
-        self.temp_frame = []
+        self.temp_frame = {}
+        self.ip += 1
+
+    def push_frame(self):
+        if self.temp_frame == None:
+            Error.ERR_FRAME_NOT_FOUND.exit()
+        self.frames.append(self.temp_frame)
+        self.temp_frame = None
+        self.ip += 1
+
+    def pop_frame(self):
+        try:
+            self.temp_frame = self.frames.pop()
+        except IndexError:
+            Error.ERR_FRAME_NOT_FOUND.exit()
+        self.ip += 1
+
+    def defvar(self):
+        var = self.program[self.ip - 1].find("arg1").text
+        scope, name = Program.parse_var(var)
+        
+        # check redefinition
+        if self.is_var_defined(scope, name):
+            Error.ERR_SEMANTIC.exit()
+        
+        if scope == "GF":
+            self.global_frame[name] = Var(VarType.UNDEF, None)
+        elif scope == "LF":
+            self.frames[-1][name] = Var(VarType.UNDEF, None)
+        elif scope == "TF":
+            self.temp_frame[name] = Var(VarType.UNDEF, None)
+        else: 
+            Error.ERR_XML_STRUCT.exit()
+        self.ip += 1
+
+    def move(self):
+        target_var = self.program[self.ip - 1].find("arg1").text
+        target_scope, target_name = Program.parse_var(target_var)
+        target_var = self.find_var(target_scope, target_name)
+        
+        source_symb = self.program[self.ip - 1].find("arg2")
+        source_type, source_value = Program.parse_symb(source_symb)
+
+        if source_type == "var":
+            source_scope, source_name = Program.parse_var(source_value)
+            source_var = self.find_var(source_scope, source_name)
+            target_var.value = copy(source_var.value)
+            target_var.var_type = copy(source_var.var_type)
+        elif source_type == "string":
+            target_var.var_type = VarType.STRING
+            target_var.value = source_value
+        else:
+            pass
+            # TODO
+            
+        eprint(target_scope, target_name, source_type, source_value)
+        self.ip += 1
+
+    def write(self):
+        symb = self.program[self.ip - 1].find("arg1")
+        symb_type, symb_value = Program.parse_symb(symb)
+
+        if symb_type == "var":
+            var_scope, var_name = Program.parse_var(symb_value)
+            var = self.find_var(var_scope, var_name)
+            print(unescape_string(var.value), end="")
+        else:
+            # TODO
+            print(symb_type, symb_value)
         self.ip += 1
 
     def execute(self, inp):
-        eprint(self.labels)
         for instr in self:
             opcode = instr.get("opcode")
-            eprint("opcode: " + opcode + ", order:  " + instr.get("order"))
+            eprint(opcode)
             if opcode not in self.handlers:
                 eprint(opcode + " missing")
                 self.ip += 1
             else:
                 self.handlers[opcode]()
-                
-            #prog.ip += 1
-            pass
+            eprint("frames: " + str(self.frames))
+            eprint("temp_frame: " + str(self.temp_frame))
+            eprint("global: " + str(self.global_frame))
+            eprint("")
 
 def main():
     inp, src = parse_args()

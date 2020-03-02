@@ -1,13 +1,15 @@
 .IPPcode20
 CREATEFRAME
 DEFVAR TF@_doot
-MOVE TF@_doot string@Hello_from_temp_frame\010
+MOVE TF@_doot string@Hello\032from\032temp\032frame!\010
 WRITE TF@_doot
 PUSHFRAME
-MOVE LF@_doot string@Now_from_local_frame\010
+DEFVAR LF@_local
+MOVE LF@_local string@Now\032from\032<local>\032frame\010
+MOVE LF@_doot LF@_local
 WRITE LF@_doot
 DEFVAR GF@_global
-MOVE GF@_global string@Global_also_works\010
+MOVE GF@_global string@Global\032also\032works\010
 WRITE GF@_global
 # why not pop that
 POPFRAME
