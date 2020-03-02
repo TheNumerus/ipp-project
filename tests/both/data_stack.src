@@ -1,0 +1,17 @@
+.IPPcode20
+DEFVAR GF@stack_top
+PUSHS bool@false
+POPS GF@stack_top
+WRITE string@na\032stacku\032je:\032
+WRITE GF@stack_top
+WRITE string@\010
+DEFVAR GF@str
+PUSHS int@4096
+MOVE GF@str string@Tohle\032je\032string\032a\032cislo:\032
+PUSHS GF@str
+WRITE string@Cislo\032a\032string:\010
+POPS GF@stack_top
+WRITE GF@stack_top
+POPS GF@stack_top
+WRITE GF@stack_top
+WRITE string@\010

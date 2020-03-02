@@ -206,6 +206,7 @@ class Program:
         self.global_frame = {}
         self.frames = []
         self.temp_frame = None
+        self.data_stack = []
 
         self.handlers = {
             "CREATEFRAME": self.create_frame,
@@ -213,7 +214,10 @@ class Program:
             "POPFRAME": self.pop_frame,
             "DEFVAR": self.defvar,
             "MOVE" : self.move,
-            "WRITE": self.write
+            "WRITE": self.write,
+            "EXIT": self.exit,
+            "PUSHS": self.push,
+            "POPS": self.pop
         }
 
         self.ip = 1
@@ -239,7 +243,7 @@ class Program:
         symb_val = symb.text
         return symb_type, symb_val
 
-    def is_var_defined(self, scope, name):
+    def is_var_defined(self, scope, name) -> bool:
         if scope == "GF":
             return name in self.global_frame
         elif scope == "LF":
@@ -316,24 +320,101 @@ class Program:
         elif source_type == "string":
             target_var.var_type = VarType.STRING
             target_var.value = source_value
+        elif source_type == "int":
+            target_var.var_type = VarType.INT
+            target_var.value = int(source_value)
+        elif source_type == "nil":
+            target_var.var_type = VarType.NIL
+            target_var.value = None
+        elif source_type == "bool":
+            target_var.var_type = VarType.BOOL
+            target_var.value = source_value == "true"
         else:
-            pass
-            # TODO
-            
-        eprint(target_scope, target_name, source_type, source_value)
+            Error.ERR_XML_STRUCT.exit()
         self.ip += 1
 
     def write(self):
         symb = self.program[self.ip - 1].find("arg1")
         symb_type, symb_value = Program.parse_symb(symb)
 
+        val_to_write = ""
+
         if symb_type == "var":
             var_scope, var_name = Program.parse_var(symb_value)
             var = self.find_var(var_scope, var_name)
-            print(unescape_string(var.value), end="")
+            if var.var_type == VarType.INT:
+                val_to_write = str(var.value)
+            elif var.var_type == VarType.STRING:
+                val_to_write = unescape_string(var.value)
+            elif var.var_type == VarType.BOOL:
+                val_to_write = "true" if var.value else "false"
+            elif var.var_type == VarType.NIL:
+                val_to_write = ""
+            else:
+                # must be `VarType.UNDEF`
+                Error.ERR_MISSING_VALUE.exit()
+        elif symb_type == "int" or symb_type == "bool":
+            val_to_write = symb_value
+        elif symb_type == "string":
+            val_to_write = unescape_string(symb_value)
+        elif symb_type == "nil":
+            val_to_write == ""
         else:
-            # TODO
-            print(symb_type, symb_value)
+            Error.ERR_XML_STRUCT.exit()
+        print(val_to_write, end="")
+        self.ip += 1
+
+    def exit(self):
+        symb = self.program[self.ip - 1].find("arg1")
+        symb_type, symb_value = Program.parse_symb(symb)
+
+        if symb_type == "int":
+            val = int(symb_value)
+            if val > 49 or val < 0:
+                Error.ERR_OP_VALUE.exit()
+            exit(val)
+        elif symb_type == "var":
+            var_scope, var_name = Program.parse_var(symb_value)
+            var = self.find_var(var_scope, var_name)
+            if var.var_type != VarType.INT:
+                Error.ERR_OP_TYPE.exit()
+            if var.value > 49 or var.value < 0:
+                Error.ERR_OP_VALUE.exit()
+            exit(var.value)
+        else:
+            Error.ERR_OP_TYPE.exit()
+
+    def push(self):
+        source_symb = self.program[self.ip - 1].find("arg1")
+        source_type, source_value = Program.parse_symb(source_symb)
+
+        if source_type == "var":
+            source_scope, source_name = Program.parse_var(source_value)
+            source_var = self.find_var(source_scope, source_name)
+            new = Var(copy(source_var.var_type), copy(source_var.value))
+        elif source_type == "string":
+            new = Var(VarType.STRING, source_value)
+        elif source_type == "int":
+            new = Var(VarType.INT, source_value)
+        elif source_type == "nil":
+            new = Var(VarType.NIL, None)
+        elif source_type == "bool":
+            new = Var(VarType.BOOL, source_value == "true")
+        else:
+            Error.ERR_XML_STRUCT.exit()
+
+        self.data_stack.append(new)
+        self.ip += 1
+
+    def pop(self):
+        if len(self.data_stack) == 0:
+            Error.ERR_MISSING_VALUE.exit()
+        var = self.program[self.ip - 1].find("arg1").text
+        scope, name = Program.parse_var(var)
+        var = self.find_var(scope, name)
+        pop = self.data_stack.pop()
+        var.var_type = pop.var_type
+        var.value = pop.value
         self.ip += 1
 
     def execute(self, inp):
@@ -348,6 +429,7 @@ class Program:
             eprint("frames: " + str(self.frames))
             eprint("temp_frame: " + str(self.temp_frame))
             eprint("global: " + str(self.global_frame))
+            eprint("stack: " + str(self.data_stack))
             eprint("")
 
 def main():
