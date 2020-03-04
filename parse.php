@@ -28,6 +28,7 @@ const OPCODE_ARGS = [
     'INT2CHAR' => [2, "var", "symbol"],
     'STRLEN' =>   [2, "var", "symbol"],
     'TYPE'=>      [2, "var", "symbol"],
+    'NOT' =>      [2, "var", "symbol"],
     'READ' =>     [2, "var", "type"],
 
     'CONCAT' =>    [3, "var", "symbol", "symbol"],
@@ -42,7 +43,6 @@ const OPCODE_ARGS = [
     'EQ' =>        [3, "var", "symbol", "symbol"],
     'AND' =>       [3, "var", "symbol", "symbol"],
     'OR' =>        [3, "var", "symbol", "symbol"],
-    'NOT' =>       [3, "var", "symbol", "symbol"],
     'STR2INT' =>   [3, "var", "symbol", "symbol"],
     'JUMPIFNEQ' => [3, "label", "symbol", "symbol"],
     'JUMPIFEQ' =>  [3, "label", "symbol", "symbol"],

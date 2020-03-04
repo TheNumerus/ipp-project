@@ -165,7 +165,8 @@ def unescape_string(string):
     i = 0
     escaped = ""
     esc = re.compile(r"\\[0-9]{3}")
-    while i <= (len(string) - 4):
+    # somewhere, this will horribly fail
+    while i < len(string):
         match = esc.search(string[i:i+4])
         if match is not None:
             escaped += chr(int(string[i+1:i+4]))
@@ -217,7 +218,8 @@ class Program:
             "WRITE": self.write,
             "EXIT": self.exit,
             "PUSHS": self.push,
-            "POPS": self.pop
+            "POPS": self.pop,
+            "TYPE": self.type_op
         }
 
         self.ip = 1
@@ -361,7 +363,7 @@ class Program:
             val_to_write == ""
         else:
             Error.ERR_XML_STRUCT.exit()
-        print(val_to_write, end="")
+        print(val_to_write, end="", flush=True)
         self.ip += 1
 
     def exit(self):
@@ -415,6 +417,34 @@ class Program:
         pop = self.data_stack.pop()
         var.var_type = pop.var_type
         var.value = pop.value
+        self.ip += 1
+
+    def type_op(self):
+        dest_var = self.program[self.ip - 1].find("arg1").text
+        scope, name = Program.parse_var(dest_var)
+        dest_var = self.find_var(scope, name)
+
+        source_symb = self.program[self.ip - 1].find("arg2")
+        source_type, source_value = Program.parse_symb(source_symb)
+        if source_type == "var":
+            source_scope, source_name = Program.parse_var(source_value)
+            source_var = self.find_var(source_scope, source_name)
+            dest_var.var_type = VarType.STRING
+            if source_var.var_type == VarType.STRING:
+                dest_var.value = "string"
+            elif source_var.var_type == VarType.UNDEF:
+                dest_var.value = ""
+            elif source_var.var_type == VarType.NIL:
+                dest_var.value = "nil"
+            elif source_var.var_type == VarType.INT:
+                dest_var.value = "int"
+            elif source_var.var_type == VarType.BOOL:
+                dest_var.value = "bool"
+            else:
+                Error.ERR_XML_STRUCT.exit()   
+        else:
+            dest_var.var_type = VarType.STRING
+            dest_var.value = source_type
         self.ip += 1
 
     def execute(self, inp):

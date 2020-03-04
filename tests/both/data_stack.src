@@ -2,7 +2,11 @@
 DEFVAR GF@stack_top
 PUSHS bool@false
 POPS GF@stack_top
-WRITE string@na\032stacku\032je:\032
+DEFVAR GF@stack_type
+TYPE GF@stack_type GF@stack_top
+WRITE string@na\032stacku\032je\032
+WRITE GF@stack_type
+WRITE string@\032s\032hodnotou:\032
 WRITE GF@stack_top
 WRITE string@\010
 DEFVAR GF@str
