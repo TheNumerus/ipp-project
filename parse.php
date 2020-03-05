@@ -43,7 +43,7 @@ const OPCODE_ARGS = [
     'EQ' =>        [3, "var", "symbol", "symbol"],
     'AND' =>       [3, "var", "symbol", "symbol"],
     'OR' =>        [3, "var", "symbol", "symbol"],
-    'STR2INT' =>   [3, "var", "symbol", "symbol"],
+    'STRI2INT' =>  [3, "var", "symbol", "symbol"],
     'JUMPIFNEQ' => [3, "label", "symbol", "symbol"],
     'JUMPIFEQ' =>  [3, "label", "symbol", "symbol"],
 ];
@@ -95,7 +95,7 @@ function main() {
 
         if ($first_line) {
             // handle header
-            if ($parts[0] != ".IPPcode20") {
+            if ( strtolower($parts[0]) != ".ippcode20") {
                 return_error(ERR_HEADER);
             }
             
@@ -110,20 +110,20 @@ function main() {
             $child->addAttribute("opcode", $parts[0]);
 
             // check if known opcode
-            if (!array_key_exists($parts[0], OPCODE_ARGS)) {
+            if (!array_key_exists(strtoupper($parts[0]), OPCODE_ARGS)) {
                 return_error(ERR_OPCODE);
             }
 
             // check correct number of arguments
-            if ((count($parts) - 1) != OPCODE_ARGS[$parts[0]][0]) {
-                return_error(ERR_OPCODE);
+            if ((count($parts) - 1) != OPCODE_ARGS[strtoupper($parts[0])][0]) {
+                return_error(ERR_OTHER);
             }
 
             $stats->loc++;
 
             // parse opcode and check for correctness
-            for($i = 1; $i <= OPCODE_ARGS[$parts[0]][0]; $i++) {
-                switch (OPCODE_ARGS[$parts[0]][$i]) {
+            for($i = 1; $i <= OPCODE_ARGS[strtoupper($parts[0])][0]; $i++) {
+                switch (OPCODE_ARGS[strtoupper($parts[0])][$i]) {
                     case "var":
                         check_var($parts[$i], $child, $i);
                     break;
@@ -220,7 +220,7 @@ function check_symb(string $symb, $parent, int $num) {
                 }
             break;
             case "int":
-                if (!preg_match('/@(\-?[0-9]+)$/', $symb, $str_match)) {
+                if (!preg_match('/@([\-\+]?[0-9]+)$/', $symb, $str_match)) {
                     return_error(ERR_OTHER);
                 }
             break;
@@ -240,7 +240,7 @@ function check_symb(string $symb, $parent, int $num) {
 
 function check_label(string $label, $parent, int $num) {
     // label is same as var
-    if (preg_match('/^[_\-$&%*!?a-zA-Z][\-$&%*!?\w]*/', $label)) {
+    if (preg_match('/^[_\-$&%*!?a-zA-Z][\-$&%*!?\w]*$/', $label)) {
         $child = $parent->addChild("arg" . $num);
         $child->addAttribute("type", "label");
         $arg = "arg" . $num;

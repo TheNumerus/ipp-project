@@ -75,7 +75,7 @@ opcodes = {
     'EQ':        [ArgType.VAR,   ArgType.SYMBOL, ArgType.SYMBOL],
     'AND':       [ArgType.VAR,   ArgType.SYMBOL, ArgType.SYMBOL],
     'OR':        [ArgType.VAR,   ArgType.SYMBOL, ArgType.SYMBOL],
-    'STR2INT':   [ArgType.VAR,   ArgType.SYMBOL, ArgType.SYMBOL],
+    'STRI2INT':  [ArgType.VAR,   ArgType.SYMBOL, ArgType.SYMBOL],
     'JUMPIFNEQ': [ArgType.LABEL, ArgType.SYMBOL, ArgType.SYMBOL],
     'JUMPIFEQ':  [ArgType.LABEL, ArgType.SYMBOL, ArgType.SYMBOL]
 }
