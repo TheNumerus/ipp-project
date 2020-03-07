@@ -176,12 +176,31 @@ def unescape_string(string):
             i += 1
     return escaped
 
+class OpType(Enum):
+    ADD = 0,
+    SUB = 1
+    MUL = 2,
+    IDIV = 3
+
 class VarType(Enum):
     BOOL = 0,
     INT = 1,
     STRING = 2,
     NIL = 3,
     UNDEF = 4
+    
+    @staticmethod
+    def from_str(string):
+        if string == "bool":
+            return VarType.BOOL
+        elif string == "int":
+            return VarType.INT
+        elif string == "nil":
+            return VarType.NIL
+        elif string == "string":
+            return VarType.STRING
+        else:
+            Error.ERR_INTERNAL.exit()
 
 class Var:
     def __init__(self, var_type: VarType, value):
@@ -190,6 +209,21 @@ class Var:
 
     def __repr__(self):
         return "VarType={type: " + self.var_type.name + ", value: " + str(self.value) + "}"
+    
+    @staticmethod
+    def from_symbol(var_type, value):
+        var_type = VarType.from_str(var_type)
+        if var_type == VarType.STRING:
+            pass
+        elif var_type == VarType.INT:
+            value = int(value)
+        elif var_type == VarType.NIL:
+            value = None
+        elif var_type == VarType.BOOL:
+            value = value == "true"
+        else:
+            Error.ERR_INTERNAL.exit()
+        return Var(var_type, value)
 
 class Program:
     def __init__(self, program):
@@ -219,31 +253,38 @@ class Program:
             "EXIT": self.exit,
             "PUSHS": self.push,
             "POPS": self.pop,
-            "TYPE": self.type_op
+            "TYPE": self.type_op,
+            "JUMP": self.jump,
+            "JUMPIFEQ": lambda: self.jumpif(equal=True),
+            "JUMPIFNEQ": lambda: self.jumpif(equal=False),
+            "ADD": lambda: self.math(op=OpType.ADD),
+            "SUB": lambda: self.math(op=OpType.SUB),
+            "MUL": lambda: self.math(op=OpType.MUL),
+            "IDIV": lambda: self.math(op=OpType.IDIV)
         }
 
-        self.ip = 1
+        self.ip = 0
     
     def __iter__(self):
         return self
     
     def __next__(self):
-        if self.ip > len(self.program):
+        if self.ip >= len(self.program):
             raise StopIteration
-        # self.ip += 1
-        return self.program[self.ip - 1]
+        return self.program[self.ip]
+
+    def fetch_args(self):
+        instr = self.program[self.ip]
+        args = []
+        for arg in instr:
+            args.append((arg.get("type"), arg.text))
+        return args
 
     @staticmethod
     def parse_var(var):
         scope = var[0:2]
         name = var[3:]
         return scope, name
-
-    @staticmethod
-    def parse_symb(symb):
-        symb_type = symb.get("type")
-        symb_val = symb.text
-        return symb_type, symb_val
 
     def is_var_defined(self, scope, name) -> bool:
         if scope == "GF":
@@ -252,14 +293,14 @@ class Program:
             if len(self.frames) == 0:
                 Error.ERR_FRAME_NOT_FOUND.exit()
             return name in self.frames[-1]
-        elif scope == "TF":
+        else:
+            # must be "TF"
             if self.temp_frame == None:
                 Error.ERR_FRAME_NOT_FOUND.exit()
             return name in self.temp_frame
-        else: 
-            Error.ERR_XML_STRUCT.exit()
 
-    def find_var(self, scope, name) -> Var:
+    def symbol_to_var(self, symbol_value) -> Var:
+        scope, name = Program.parse_var(symbol_value)
         if not self.is_var_defined(scope, name):
             Error.ERR_VAR_NOT_FOUND.exit()
         
@@ -268,6 +309,7 @@ class Program:
         elif scope == "LF":
             return self.frames[-1][name]
         else:
+            # must be "TF"
             return self.temp_frame[name]
 
     def create_frame(self):
@@ -289,8 +331,8 @@ class Program:
         self.ip += 1
 
     def defvar(self):
-        var = self.program[self.ip - 1].find("arg1").text
-        scope, name = Program.parse_var(var)
+        _, name = self.fetch_args()[0]
+        scope, name = Program.parse_var(name)
         
         # check redefinition
         if self.is_var_defined(scope, name):
@@ -300,99 +342,70 @@ class Program:
             self.global_frame[name] = Var(VarType.UNDEF, None)
         elif scope == "LF":
             self.frames[-1][name] = Var(VarType.UNDEF, None)
-        elif scope == "TF":
+        else:
+            # must be "TF"
             self.temp_frame[name] = Var(VarType.UNDEF, None)
-        else: 
-            Error.ERR_XML_STRUCT.exit()
         self.ip += 1
 
     def move(self):
-        target_var = self.program[self.ip - 1].find("arg1").text
-        target_scope, target_name = Program.parse_var(target_var)
-        target_var = self.find_var(target_scope, target_name)
-        
-        source_symb = self.program[self.ip - 1].find("arg2")
-        source_type, source_value = Program.parse_symb(source_symb)
+        (_, target), (source_type, source_value) = self.fetch_args()
+        target_var = self.symbol_to_var(target)
 
         if source_type == "var":
-            source_scope, source_name = Program.parse_var(source_value)
-            source_var = self.find_var(source_scope, source_name)
+            source_var = self.symbol_to_var(source_value)
             target_var.value = copy(source_var.value)
             target_var.var_type = copy(source_var.var_type)
-        elif source_type == "string":
-            target_var.var_type = VarType.STRING
-            target_var.value = source_value
-        elif source_type == "int":
-            target_var.var_type = VarType.INT
-            target_var.value = int(source_value)
-        elif source_type == "nil":
-            target_var.var_type = VarType.NIL
-            target_var.value = None
-        elif source_type == "bool":
-            target_var.var_type = VarType.BOOL
-            target_var.value = source_value == "true"
         else:
-            Error.ERR_XML_STRUCT.exit()
+            source_var = Var.from_symbol(source_type, source_value)
+            target_var.value = copy(source_var.value)
+            target_var.var_type = copy(source_var.var_type)
         self.ip += 1
 
     def write(self):
-        symb = self.program[self.ip - 1].find("arg1")
-        symb_type, symb_value = Program.parse_symb(symb)
+        symb_type, symb_value = self.fetch_args()[0]
 
         val_to_write = ""
 
         if symb_type == "var":
-            var_scope, var_name = Program.parse_var(symb_value)
-            var = self.find_var(var_scope, var_name)
-            if var.var_type == VarType.INT:
-                val_to_write = str(var.value)
-            elif var.var_type == VarType.STRING:
-                val_to_write = unescape_string(var.value)
-            elif var.var_type == VarType.BOOL:
-                val_to_write = "true" if var.value else "false"
-            elif var.var_type == VarType.NIL:
-                val_to_write = ""
-            else:
-                # must be `VarType.UNDEF`
-                Error.ERR_MISSING_VALUE.exit()
-        elif symb_type == "int" or symb_type == "bool":
-            val_to_write = symb_value
-        elif symb_type == "string":
-            val_to_write = unescape_string(symb_value)
-        elif symb_type == "nil":
-            val_to_write == ""
+            var = self.symbol_to_var(symb_value)
         else:
-            Error.ERR_XML_STRUCT.exit()
+            var = Var.from_symbol(symb_type, symb_value)
+        if var.var_type == VarType.INT:
+            val_to_write = str(var.value)
+        elif var.var_type == VarType.STRING:
+            val_to_write = unescape_string(var.value)
+        elif var.var_type == VarType.BOOL:
+            val_to_write = "true" if var.value else "false"
+        elif var.var_type == VarType.NIL:
+            val_to_write = ""
+        else:
+            # must be `VarType.UNDEF`
+            Error.ERR_MISSING_VALUE.exit()
         print(val_to_write, end="", flush=True)
         self.ip += 1
 
     def exit(self):
-        symb = self.program[self.ip - 1].find("arg1")
-        symb_type, symb_value = Program.parse_symb(symb)
+        symb_type, symb_value = self.fetch_args()[0]
 
         if symb_type == "int":
             val = int(symb_value)
-            if val > 49 or val < 0:
-                Error.ERR_OP_VALUE.exit()
-            exit(val)
         elif symb_type == "var":
-            var_scope, var_name = Program.parse_var(symb_value)
-            var = self.find_var(var_scope, var_name)
+            var = self.symbol_to_var(symb_value)
             if var.var_type != VarType.INT:
                 Error.ERR_OP_TYPE.exit()
-            if var.value > 49 or var.value < 0:
-                Error.ERR_OP_VALUE.exit()
-            exit(var.value)
+            val = var.value
         else:
             Error.ERR_OP_TYPE.exit()
+        
+        if val > 49 or val < 0:
+            Error.ERR_OP_VALUE.exit()
+        exit(val)
 
     def push(self):
-        source_symb = self.program[self.ip - 1].find("arg1")
-        source_type, source_value = Program.parse_symb(source_symb)
+        source_type, source_value = self.fetch_args()[0]
 
         if source_type == "var":
-            source_scope, source_name = Program.parse_var(source_value)
-            source_var = self.find_var(source_scope, source_name)
+            source_var = self.symbol_to_var(source_value)
             new = Var(copy(source_var.var_type), copy(source_var.value))
         elif source_type == "string":
             new = Var(VarType.STRING, source_value)
@@ -411,40 +424,95 @@ class Program:
     def pop(self):
         if len(self.data_stack) == 0:
             Error.ERR_MISSING_VALUE.exit()
-        var = self.program[self.ip - 1].find("arg1").text
-        scope, name = Program.parse_var(var)
-        var = self.find_var(scope, name)
+        _, dst = self.fetch_args()[0]
+        var = self.symbol_to_var(dst)
         pop = self.data_stack.pop()
         var.var_type = pop.var_type
         var.value = pop.value
         self.ip += 1
 
     def type_op(self):
-        dest_var = self.program[self.ip - 1].find("arg1").text
-        scope, name = Program.parse_var(dest_var)
-        dest_var = self.find_var(scope, name)
+        (_, dest_loc), (src_type, src_val) = self.fetch_args()
+        dest_var = self.symbol_to_var(dest_loc)
 
-        source_symb = self.program[self.ip - 1].find("arg2")
-        source_type, source_value = Program.parse_symb(source_symb)
-        if source_type == "var":
-            source_scope, source_name = Program.parse_var(source_value)
-            source_var = self.find_var(source_scope, source_name)
+        if src_type == "var":
+            src_var = self.symbol_to_var(src_val)
             dest_var.var_type = VarType.STRING
-            if source_var.var_type == VarType.STRING:
+            if src_var.var_type == VarType.STRING:
                 dest_var.value = "string"
-            elif source_var.var_type == VarType.UNDEF:
+            elif src_var.var_type == VarType.UNDEF:
                 dest_var.value = ""
-            elif source_var.var_type == VarType.NIL:
+            elif src_var.var_type == VarType.NIL:
                 dest_var.value = "nil"
-            elif source_var.var_type == VarType.INT:
+            elif src_var.var_type == VarType.INT:
                 dest_var.value = "int"
-            elif source_var.var_type == VarType.BOOL:
+            elif src_var.var_type == VarType.BOOL:
                 dest_var.value = "bool"
             else:
                 Error.ERR_XML_STRUCT.exit()   
         else:
             dest_var.var_type = VarType.STRING
-            dest_var.value = source_type
+            dest_var.value = src_type
+        self.ip += 1
+
+    def jump(self):
+        _, label = self.fetch_args()[0]
+        if label not in self.labels:
+            Error.ERR_SEMANTIC.exit()
+        self.ip = self.labels[label]
+
+    def jumpif(self,*, equal:bool):
+        (_, label), (type_1, value_1), (type_2, value_2) = self.fetch_args()
+
+        if label not in self.labels:
+            Error.ERR_SEMANTIC.exit()
+
+        if type_1 == "var":
+            var_1 = self.symbol_to_var(value_1)
+        else:
+            var_1 = Var.from_symbol(type_1, value_1)
+        
+        if type_2 == "var":
+            var_2 = self.symbol_to_var(value_2)
+        else:
+            var_2 = Var.from_symbol(type_2, value_2)
+
+        if var_1.var_type != var_2.var_type and var_1.var_type != VarType.NIL and var_2.var_type != VarType.NIL:
+            Error.ERR_OP_TYPE.exit()
+        if var_1.var_type == VarType.NIL or var_2.var_type == VarType.NIL:
+            self.ip = self.labels[label]
+
+        if (var_1.value == var_2.value) ^ (not equal):
+            self.ip = self.labels[label]
+        else:
+            self.ip += 1
+
+    def math(self,*, op: OpType):
+        (_, target), (type_1, value_1), (type_2, value_2) = self.fetch_args()
+        target = self.symbol_to_var(target)
+
+        if type_1 == "var":
+            var_1 = self.symbol_to_var(value_1)
+        else:
+            var_1 = Var.from_symbol(type_1, value_1)
+        
+        if type_2 == "var":
+            var_2 = self.symbol_to_var(value_2)
+        else:
+            var_2 = Var.from_symbol(type_2, value_2)
+
+        if var_1.var_type != VarType.INT or var_2.var_type != VarType.INT:
+            Error.ERR_OP_TYPE.exit()
+        
+        if op == OpType.ADD:
+            target.value = var_1.value + var_2.value
+        elif op == OpType.SUB:
+            target.value = var_1.value - var_2.value
+        elif op == OpType.MUL:
+            target.value = var_1.value * var_2.value
+        else:
+            # must be `IDIV`
+            target.value = var_1.value // var_2.value
         self.ip += 1
 
     def execute(self, inp):

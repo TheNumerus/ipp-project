@@ -107,7 +107,7 @@ function main() {
             // create child node
             $child = $xml->addChild("instruction");
             $child->addAttribute("order", $stats->loc + 1);
-            $child->addAttribute("opcode", $parts[0]);
+            $child->addAttribute("opcode", strtoupper($parts[0]));
 
             // check if known opcode
             if (!array_key_exists(strtoupper($parts[0]), OPCODE_ARGS)) {

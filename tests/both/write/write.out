@@ -1,0 +1,12 @@
+constants:
+12345
+-12345
+true
+false
+
+variables:
+12345
+-12345
+true
+false
+

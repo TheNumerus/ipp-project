@@ -1,0 +1,40 @@
+.ippcode20
+WRITE string@constants:\010
+
+WRITE int@00000012345
+WRITE string@\010
+
+WRITE int@-0000012345
+WRITE string@\010
+
+WRITE bool@true
+WRITE string@\010
+
+WRITE bool@false
+WRITE string@\010
+
+WRITE nil@nil
+WRITE string@\010
+
+WRITE string@variables:\010
+DEFVAR GF@write
+
+MOVE GF@write int@00000012345
+WRITE GF@write
+WRITE string@\010
+
+MOVE GF@write int@-0000012345
+WRITE GF@write
+WRITE string@\010
+
+MOVE GF@write bool@true
+WRITE GF@write
+WRITE string@\010
+
+MOVE GF@write bool@false
+WRITE GF@write
+WRITE string@\010
+
+MOVE GF@write nil@nil
+WRITE GF@write
+WRITE string@\010
