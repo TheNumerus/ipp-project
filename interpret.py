@@ -77,7 +77,8 @@ def parse_args():
             Error.ERR_ARGS.exit()
     else:
         Error.ERR_ARGS.exit()
-    return (inp, src)
+    sys.stdin = inp
+    return src
 
 def check_xml(program):
     # check root node
@@ -260,7 +261,8 @@ class Program:
             "ADD": lambda: self.math(op=OpType.ADD),
             "SUB": lambda: self.math(op=OpType.SUB),
             "MUL": lambda: self.math(op=OpType.MUL),
-            "IDIV": lambda: self.math(op=OpType.IDIV)
+            "IDIV": lambda: self.math(op=OpType.IDIV),
+            "READ": self.read
         }
 
         self.ip = 0
@@ -324,9 +326,9 @@ class Program:
         self.ip += 1
 
     def pop_frame(self):
-        try:
+        if len(self.frames) > 0:
             self.temp_frame = self.frames.pop()
-        except IndexError:
+        else:
             Error.ERR_FRAME_NOT_FOUND.exit()
         self.ip += 1
 
@@ -513,9 +515,38 @@ class Program:
         else:
             # must be `IDIV`
             target.value = var_1.value // var_2.value
+        target.var_type = VarType.INT
         self.ip += 1
 
-    def execute(self, inp):
+    def read(self):
+        (_, target), (_, src_type) = self.fetch_args()
+        var = self.symbol_to_var(target)
+        error = False
+        try:
+            i = input()
+        except EOFError:
+            error = True
+            i = None
+        if src_type == "string":
+            pass
+        elif src_type == "bool":
+            i = i.lower() == "true"
+        elif src_type == "int":
+            try:
+                i = int(i)
+            except ValueError:
+                error = True
+                i = None
+        else:
+            pass
+        var.value = i
+        if error:
+            var.var_type = VarType.NIL
+        else:
+            var.var_type = VarType.from_str(src_type)
+        self.ip += 1
+
+    def execute(self):
         for instr in self:
             opcode = instr.get("opcode")
             eprint(opcode)
@@ -531,7 +562,7 @@ class Program:
             eprint("")
 
 def main():
-    inp, src = parse_args()
+    src = parse_args()
     code = src.read()
     try:
         xml = ET.fromstring(code)
@@ -539,7 +570,7 @@ def main():
         Error.ERR_XML_PARSE.exit()   
     check_xml(xml)
     program = Program(xml)
-    program.execute(inp)
+    program.execute()
 
 if __name__ == "__main__":
     main()

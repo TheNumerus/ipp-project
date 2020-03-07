@@ -1,0 +1,16 @@
+.ippcode20
+DEFVAR GF@a
+DEFVAR GF@b
+WRITE string@Zadej\032A:\032
+READ GF@a int
+WRITE string@\010Zadej\032B:\032
+READ GF@b int
+DEFVAR GF@c
+ADD GF@c GF@a GF@b
+WRITE string@\010
+WRITE GF@a
+WRITE string@\032+\032
+WRITE GF@b
+WRITE string@\032=\032
+WRITE GF@c
+WRITE string@\010
