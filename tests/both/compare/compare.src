@@ -1,0 +1,21 @@
+.ippcode20
+DEFVAR GF@a
+DEFVAR GF@b
+WRITE string@Zadej\032A:\032
+READ GF@a int
+WRITE string@\010Zadej\032B:\032
+READ GF@b int
+WRITE string@\010
+DEFVAR GF@comp
+LT GF@comp GF@a GF@b
+JUMPIFEQ less GF@comp bool@true
+GT GF@comp GF@a GF@b
+JUMPIFEQ more GF@comp bool@true
+WRITE string@A\032je\032stejne\032jako\032B\010
+EXIT int@0
+LABEL less
+WRITE string@A\032je\032mensi\032nez\032B\010
+EXIT int@0
+LABEL more
+WRITE string@A\032je\032vetsi\032nez\032B\010
+EXIT int@0

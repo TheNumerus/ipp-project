@@ -1,0 +1,14 @@
+.ippcode20
+PUSHS string@tisk\032z\032funkce
+CALL print
+PUSHS string@hello!
+CALL print
+JUMP end
+LABEL print
+CREATEFRAME
+DEFVAR TF@temp
+POPS TF@temp
+WRITE TF@temp
+WRITE string@\010
+RETURN
+LABEL end

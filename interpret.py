@@ -3,7 +3,7 @@ import xml.etree.ElementTree as ET
 import sys
 import re
 from helper import *
-from copy import copy
+from copy import copy, deepcopy
 
 def eprint(*args):
     for arg in args:
@@ -183,6 +183,15 @@ class OpType(Enum):
     MUL = 2,
     IDIV = 3
 
+class CompOpType(Enum):
+    LESSER = 0,
+    GREATER = 1,
+    EQUAL = 2
+
+class LogicOpType(Enum):
+    AND = 0
+    OR = 1
+
 class VarType(Enum):
     BOOL = 0,
     INT = 1,
@@ -243,6 +252,7 @@ class Program:
         self.frames = []
         self.temp_frame = None
         self.data_stack = []
+        self.call_stack = []
 
         self.handlers = {
             "CREATEFRAME": self.create_frame,
@@ -262,7 +272,24 @@ class Program:
             "SUB": lambda: self.math(op=OpType.SUB),
             "MUL": lambda: self.math(op=OpType.MUL),
             "IDIV": lambda: self.math(op=OpType.IDIV),
-            "READ": self.read
+            "READ": self.read,
+            "CALL": self.call,
+            "RETURN": self.return_op,
+            "LT": lambda: self.comp(op=CompOpType.LESSER),
+            "GT": lambda: self.comp(op=CompOpType.GREATER),
+            "EQ": lambda: self.comp(op=CompOpType.EQUAL),
+            "AND": lambda: self.logic(op=LogicOpType.AND),
+            "OR": lambda: self.logic(op=LogicOpType.OR),
+            "NOT": self.not_op,
+            "DPRINT": self.dprint,
+            "BREAK": self.break_op,
+            "LABEL": self.label_op,
+            "INT2CHAR": self.int_to_char,
+            "STRI2INT": self.stri_to_int,
+            "CONCAT": self.concat,
+            "STRLEN": self.strlen,
+            "GETCHAR": self.get_char,
+            "SETCHAR": self.set_char
         }
 
         self.ip = 0
@@ -314,6 +341,12 @@ class Program:
             # must be "TF"
             return self.temp_frame[name]
 
+    def arg_to_var(self, symbol_type: str, symbol_value: str) -> Var:
+        if symbol_type == "var":
+            return self.symbol_to_var(symbol_value)
+        else:
+            return Var.from_symbol(symbol_type, symbol_value)
+
     def create_frame(self):
         self.temp_frame = {}
         self.ip += 1
@@ -352,26 +385,18 @@ class Program:
     def move(self):
         (_, target), (source_type, source_value) = self.fetch_args()
         target_var = self.symbol_to_var(target)
+        source_var = self.arg_to_var(source_type, source_value)
 
-        if source_type == "var":
-            source_var = self.symbol_to_var(source_value)
-            target_var.value = copy(source_var.value)
-            target_var.var_type = copy(source_var.var_type)
-        else:
-            source_var = Var.from_symbol(source_type, source_value)
-            target_var.value = copy(source_var.value)
-            target_var.var_type = copy(source_var.var_type)
+        target_var.value = copy(source_var.value)
+        target_var.var_type = copy(source_var.var_type)
         self.ip += 1
 
     def write(self):
         symb_type, symb_value = self.fetch_args()[0]
 
-        val_to_write = ""
+        var = self.arg_to_var(symb_type, symb_value)
 
-        if symb_type == "var":
-            var = self.symbol_to_var(symb_value)
-        else:
-            var = Var.from_symbol(symb_type, symb_value)
+        val_to_write = ""
         if var.var_type == VarType.INT:
             val_to_write = str(var.value)
         elif var.var_type == VarType.STRING:
@@ -405,22 +430,8 @@ class Program:
 
     def push(self):
         source_type, source_value = self.fetch_args()[0]
-
-        if source_type == "var":
-            source_var = self.symbol_to_var(source_value)
-            new = Var(copy(source_var.var_type), copy(source_var.value))
-        elif source_type == "string":
-            new = Var(VarType.STRING, source_value)
-        elif source_type == "int":
-            new = Var(VarType.INT, source_value)
-        elif source_type == "nil":
-            new = Var(VarType.NIL, None)
-        elif source_type == "bool":
-            new = Var(VarType.BOOL, source_value == "true")
-        else:
-            Error.ERR_XML_STRUCT.exit()
-
-        self.data_stack.append(new)
+        var = self.arg_to_var(source_type, source_value)
+        self.data_stack.append(deepcopy(var))
         self.ip += 1
 
     def pop(self):
@@ -436,10 +447,10 @@ class Program:
     def type_op(self):
         (_, dest_loc), (src_type, src_val) = self.fetch_args()
         dest_var = self.symbol_to_var(dest_loc)
+        dest_var.var_type = VarType.STRING
 
         if src_type == "var":
             src_var = self.symbol_to_var(src_val)
-            dest_var.var_type = VarType.STRING
             if src_var.var_type == VarType.STRING:
                 dest_var.value = "string"
             elif src_var.var_type == VarType.UNDEF:
@@ -453,7 +464,6 @@ class Program:
             else:
                 Error.ERR_XML_STRUCT.exit()   
         else:
-            dest_var.var_type = VarType.STRING
             dest_var.value = src_type
         self.ip += 1
 
@@ -469,15 +479,8 @@ class Program:
         if label not in self.labels:
             Error.ERR_SEMANTIC.exit()
 
-        if type_1 == "var":
-            var_1 = self.symbol_to_var(value_1)
-        else:
-            var_1 = Var.from_symbol(type_1, value_1)
-        
-        if type_2 == "var":
-            var_2 = self.symbol_to_var(value_2)
-        else:
-            var_2 = Var.from_symbol(type_2, value_2)
+        var_1 = self.arg_to_var(type_1, value_1)
+        var_2 = self.arg_to_var(type_2, value_2)
 
         if var_1.var_type != var_2.var_type and var_1.var_type != VarType.NIL and var_2.var_type != VarType.NIL:
             Error.ERR_OP_TYPE.exit()
@@ -493,15 +496,8 @@ class Program:
         (_, target), (type_1, value_1), (type_2, value_2) = self.fetch_args()
         target = self.symbol_to_var(target)
 
-        if type_1 == "var":
-            var_1 = self.symbol_to_var(value_1)
-        else:
-            var_1 = Var.from_symbol(type_1, value_1)
-        
-        if type_2 == "var":
-            var_2 = self.symbol_to_var(value_2)
-        else:
-            var_2 = Var.from_symbol(type_2, value_2)
+        var_1 = self.arg_to_var(type_1, value_1)
+        var_2 = self.arg_to_var(type_2, value_2)
 
         if var_1.var_type != VarType.INT or var_2.var_type != VarType.INT:
             Error.ERR_OP_TYPE.exit()
@@ -546,20 +542,179 @@ class Program:
             var.var_type = VarType.from_str(src_type)
         self.ip += 1
 
+    def call(self):
+        _, label = self.fetch_args()[0]
+        if label not in self.labels:
+            Error.ERR_SEMANTIC.exit()
+        self.call_stack.append(self.ip + 1)
+        self.ip = self.labels[label]
+
+    def return_op(self):
+        if len(self.call_stack) == 0:
+            Error.ERR_MISSING_VALUE.exit()
+        self.ip = self.call_stack.pop()
+
+    def comp(self, *, op: CompOpType):
+        (_, target), (type_1, value_1), (type_2, value_2) = self.fetch_args()
+        target = self.symbol_to_var(target)
+        var_1 = self.arg_to_var(type_1, value_1)
+        var_2 = self.arg_to_var(type_2, value_2)
+        
+        if (var_1.var_type == VarType.NIL or var_2.var_type == VarType.NIL) and op != CompOpType.EQUAL:
+            Error.ERR_OP_TYPE.exit()
+        
+        target.var_type = VarType.BOOL
+        if var_1.var_type == var_2.var_type and var_1 != VarType.NIL:
+            if op == CompOpType.LESSER:
+                target.value = var_1.value < var_2.value
+            elif op == CompOpType.GREATER:
+                target.value = var_1.value > var_2.value
+            else:
+                # must be `EQUAL`
+                target.value = var_1.value == var_2.value
+        else:
+            target.value = False
+        self.ip += 1
+
+    def logic(self, *, op: LogicOpType):
+        (_, target), (type_1, value_1), (type_2, value_2) = self.fetch_args()
+        target = self.symbol_to_var(target)
+        var_1 = self.arg_to_var(type_1, value_1)
+        var_2 = self.arg_to_var(type_2, value_2)
+
+        if var_1.var_type == var_2.var_type and var_1.var_type == VarType.BOOL:
+            target.var_type = VarType.BOOL
+            if op == LogicOpType.AND:
+                target.value = var_1.value and var_2.value
+            else:
+                # must be `OR`
+                target.value = var_1.value or var_2.value
+        else:
+            Error.ERR_OP_TYPE.exit()
+        self.ip += 1
+
+    def not_op(self):
+        (_, target), (type_1, value_1) = self.fetch_args()
+        target = self.symbol_to_var(target)
+        var = self.arg_to_var(type_1, value_1)
+        if var.var_type == VarType.BOOL:
+            target.var_type = VarType.BOOL
+            target.value = not var.value
+        else:
+            Error.ERR_OP_TYPE.exit()
+        self.ip += 1
+
+    def dprint(self):
+        type_1, value_1 = self.fetch_args()[0]
+        var = self.arg_to_var(type_1, value_1)
+        eprint(var)
+        self.ip += 1
+
+    def break_op(self):
+        eprint("frames: " + str(self.frames))
+        eprint("temp_frame: " + str(self.temp_frame))
+        eprint("global: " + str(self.global_frame))
+        eprint("stack: " + str(self.data_stack))
+        eprint("")
+
+    def label_op(self):
+        self.ip += 1
+
+    def int_to_char(self):
+        (_, target), (src_type, src_value) = self.fetch_args()
+        target = self.symbol_to_var(target)
+        src = self.arg_to_var(src_type, src_value)
+        if src.var_type != VarType.INT:
+            Error.ERR_OP_TYPE.exit()
+        
+        try:
+            char = chr(src.value)
+        except ValueError:
+            Error.ERR_STRING.exit()
+        
+        target.value = char
+        target.var_type = VarType.STRING
+        self.ip += 1
+
+    def stri_to_int(self):
+        (_, target), (src_type, src_value), (index_type, index_value) = self.fetch_args()
+        target = self.symbol_to_var(target)
+        src = self.arg_to_var(src_type, src_value)
+        index = self.arg_to_var(index_type, index_value)
+        if src.var_type != VarType.STRING or index.var_type != VarType.INT:
+            Error.ERR_OP_TYPE.exit()
+        
+        try:
+            char = ord(src.value[index.value])
+        except IndexError:
+            Error.ERR_STRING.exit()
+        
+        target.value = char
+        target.var_type = VarType.INT
+        self.ip += 1
+
+    def concat(self):
+        (_, target), (type_1, value_1), (type_2, value_2) = self.fetch_args()
+        target = self.symbol_to_var(target)
+        var_1 = self.arg_to_var(type_1, value_1)
+        var_2 = self.arg_to_var(type_2, value_2)
+        if var_1.var_type != VarType.STRING or var_2.var_type != VarType.STRING:
+            Error.ERR_OP_TYPE.exit()
+        
+        target.value = var_1.value + var_2.value
+        target.var_type = VarType.STRING
+        self.ip += 1
+
+    def strlen(self):
+        (_, target), (type_1, value_1) = self.fetch_args()
+        target = self.symbol_to_var(target)
+        var_1 = self.arg_to_var(type_1, value_1)
+        if var_1.var_type != VarType.STRING:
+            Error.ERR_OP_TYPE.exit()
+        
+        target.value = len(var_1.value)
+        target.var_type = VarType.INT
+        self.ip += 1
+
+    def get_char(self):
+        (_, target), (src_type, src_value), (index_type, index_value) = self.fetch_args()
+        target = self.symbol_to_var(target)
+        src = self.arg_to_var(src_type, src_value)
+        index = self.arg_to_var(index_type, index_value)
+        if src.var_type != VarType.STRING or index.var_type != VarType.INT:
+            Error.ERR_OP_TYPE.exit()
+
+        try:
+            char = src.value[index.value]
+        except IndexError:
+            Error.ERR_STRING.exit()
+        
+        target.value = char
+        target.var_type = VarType.STRING
+        self.ip += 1
+
+    def set_char(self):
+        (_, target), (index_type, index_value), (src_type, src_value) = self.fetch_args()
+        target = self.symbol_to_var(target)
+        index = self.arg_to_var(index_type, index_value)
+        src = self.arg_to_var(src_type, src_value)
+        if target.var_type != VarType.STRING or index.var_type != VarType.INT or src.var_type != VarType.STRING:
+            Error.ERR_OP_TYPE.exit()
+
+        try:
+            target.value[index.value] = src.value[0]
+        except IndexError:
+            Error.ERR_STRING.exit()
+        
+        self.ip += 1
+
     def execute(self):
         for instr in self:
             opcode = instr.get("opcode")
-            eprint(opcode)
             if opcode not in self.handlers:
-                eprint(opcode + " missing")
-                self.ip += 1
+                Error.ERR_SEMANTIC.exit()
             else:
                 self.handlers[opcode]()
-            eprint("frames: " + str(self.frames))
-            eprint("temp_frame: " + str(self.temp_frame))
-            eprint("global: " + str(self.global_frame))
-            eprint("stack: " + str(self.data_stack))
-            eprint("")
 
 def main():
     src = parse_args()
