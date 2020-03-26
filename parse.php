@@ -261,6 +261,7 @@ function check_type(string $type, $parent, int $num) {
     return_error(ERR_OTHER);
 }
 
+// prints error message
 function return_error(int $err) {
     switch ($err) {
         case ERR_ARG:
