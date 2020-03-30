@@ -1,3 +1,9 @@
 output
 supplementary-tests/
 __pycache__/
+
+env
+
+lib/
+
+.idea/
