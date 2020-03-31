@@ -92,11 +92,11 @@ function main() {
         if ($first_line) {
             // handle header
             if ( strtolower($parts[0]) != ".ippcode20") {
-                return_error(ERR_HEADER);
+                return_error(Err::HEADER);
             }
             
             if (count($parts) != 1) {
-                return_error(ERR_HEADER);
+                return_error(Err::HEADER);
             }
             $first_line = false;
         } else {
@@ -107,12 +107,12 @@ function main() {
 
             // check if known opcode
             if (!array_key_exists(strtoupper($parts[0]), OPCODE_ARGS)) {
-                return_error(ERR_OPCODE);
+                return_error(Err::OPCODE);
             }
 
             // check correct number of arguments
             if ((count($parts) - 1) != OPCODE_ARGS[strtoupper($parts[0])][0]) {
-                return_error(ERR_OTHER);
+                return_error(Err::OTHER);
             }
 
             $stats->loc++;
@@ -133,7 +133,7 @@ function main() {
                         check_type($parts[$i], $child, $i);
                     break;
                     default:
-                        return_error(ERR_INTERNAL);
+                        return_error(Err::INTERNAL);
                     break;
                 }
             }
@@ -193,7 +193,7 @@ function check_var(string $var, $parent, int $num) {
         $parent->$arg = $var;
         return;
     }
-    return_error(ERR_OTHER);
+    return_error(Err::OTHER);
 }
 
 function check_symb(string $symb, $parent, int $num) {
@@ -207,30 +207,30 @@ function check_symb(string $symb, $parent, int $num) {
         switch ($matches[1]) {
             case "string":
                 if (!preg_match('/@(([^\\s#@\\\\]|\\\\[0-9]{3})*)$/', $symb, $str_match)) {
-                    return_error(ERR_OTHER);
+                    return_error(Err::OTHER);
                 }
             break;
             case "bool":
                 if (!preg_match('/@(true|false)$/', $symb, $str_match)) {
-                    return_error(ERR_OTHER);
+                    return_error(Err::OTHER);
                 }
             break;
             case "int":
                 if (!preg_match('/@([\-\+]?[0-9]+)$/', $symb, $str_match)) {
-                    return_error(ERR_OTHER);
+                    return_error(Err::OTHER);
                 }
             break;
             case "nil":
                 if (!preg_match('/@(nil)$/', $symb, $str_match)) {
-                    return_error(ERR_OTHER);
+                    return_error(Err::OTHER);
                 }
             break;
             default:
-            return_error(ERR_OTHER);
+            return_error(Err::OTHER);
         }
         $parent->$arg = $str_match[1];
     } else {
-        return_error(ERR_OTHER);
+        return_error(Err::OTHER);
     }
 }
 
@@ -243,7 +243,7 @@ function check_label(string $label, $parent, int $num) {
         $parent->$arg = $label;
         return;
     }
-    return_error(ERR_OTHER);
+    return_error(Err::OTHER);
 }
 
 function check_type(string $type, $parent, int $num) {
@@ -254,7 +254,7 @@ function check_type(string $type, $parent, int $num) {
         $parent->$arg = $type;
         return;
     }
-    return_error(ERR_OTHER);
+    return_error(Err::OTHER);
 }
 
 class Stats {
@@ -273,7 +273,7 @@ class Stats {
                 fprintf($file, "%d\n", $this->$value);
             }
         } else {
-            return_error(ERR_OUTPUT);
+            return_error(Err::OUTPUT);
         }
     }
 }
@@ -290,7 +290,7 @@ class StatsOpt {
         }
         if (preg_match("/^\-\-stats=(\S*)$/", $argv[1], $matches)) {
             if (strlen($matches[1]) == 0) {
-                return_error(ERR_ARG);
+                return_error(Err::ARG);
             }
             $opt = new StatsOpt();
             $opt->filepath = $matches[1];
@@ -299,14 +299,14 @@ class StatsOpt {
                 if (preg_match("/^\-\-(loc|comments|jumps|labels)$/", $argv[$i], $arg_matches)) {
                     $opt->options[] = $arg_matches[1];
                 } else {
-                    return_error(ERR_ARG);
+                    return_error(Err::ARG);
                 }
             }
             return $opt;
         } else if ($argc == 1) {
             return null;
         } else {
-            return_error(ERR_ARG);
+            return_error(Err::ARG);
         }
     }
 }
