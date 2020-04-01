@@ -1,6 +1,7 @@
 <?php
 
 require 'error.php';
+require 'html_strings.php';
 
 class Variant {
     const BOTH = 0;
@@ -48,15 +49,20 @@ function main() {
         $files = test_scan($opts->test_path);
     }
     
+    $tests = [];
+    
     foreach ($files as $input) {
         fprintf(STDERR, "running %s", $input);
         $test_ressult = run_test($input, $opts);
+        $tests[] = $test_ressult;
         if ($test_ressult->result != Result::PASSED) {
             fprintf(STDERR, "...\e[0;31mFAILED\e[0;0;1m\n");
         } else {
             fprintf(STDERR, "...\e[0;32mPASSED\e[0;0;1m\n");
         }
     }
+    
+    print_html($opts, $tests);
 }
 
 function test_scan(string $path) {
@@ -135,13 +141,14 @@ function run_test(string $test_path, TestOpts $opts) :TestResult {
     $rc = intval($rc);
 
     $test_result = new TestResult();
+    $test_result->name = $test_path;
+    $test_result->expected_rc = $rc;
 
     if ($opts->variant == Variant::BOTH) {
         $parse_result = Commands::exec_parse($opts, $test_path);
+        $test_result->got_rc = $parse_result->ret_val;
         if ($parse_result->ret_val != $rc) {
             $test_result->result = Result::WRONG_RC;
-            $test_result->got_rc = $parse_result->ret_val;
-            $test_result->expected_rc = $rc;
             return $test_result;
         }
 
@@ -156,10 +163,9 @@ function run_test(string $test_path, TestOpts $opts) :TestResult {
         fwrite($temp_file, $parse_result->output);
 
         $interpret_result = Commands::exec_interpret($opts, $temp_result_path, $input_path);
+        $test_result->got_rc = $interpret_result->ret_val;
         if ($interpret_result->ret_val != $rc) {
             $test_result->result = Result::WRONG_RC;
-            $test_result->got_rc = $interpret_result->ret_val;
-            $test_result->expected_rc = $rc;
             return $test_result;
         }
 
@@ -184,10 +190,9 @@ function run_test(string $test_path, TestOpts $opts) :TestResult {
         }
     } else if ($opts->variant == Variant::INT_ONLY) {
         $interpret_result = Commands::exec_interpret($opts, $test_path, $input_path);
+        $test_result->got_rc = $interpret_result->ret_val;
         if ($interpret_result->ret_val != $rc) {
             $test_result->result = Result::WRONG_RC;
-            $test_result->got_rc = $interpret_result->ret_val;
-            $test_result->expected_rc = $rc;
             return $test_result;
         }
 
@@ -212,10 +217,9 @@ function run_test(string $test_path, TestOpts $opts) :TestResult {
         }
     } else {
         $result = Commands::exec_parse($opts, $test_path);
+        $test_result->got_rc = $result->ret_val;
         if ($result->ret_val != $rc) {
             $test_result->result = Result::WRONG_RC;
-            $test_result->got_rc = $result->ret_val;
-            $test_result->expected_rc = $rc;
             return $test_result;
         }
 
@@ -264,6 +268,80 @@ function print_help() {
     echo "11 - Unable to open input file\n";
     echo "12 - Unable to open output file\n";
     echo "99 - Internal error in the script";
+}
+
+function print_html(TestOpts $opts, array $tests) {
+    global $html_head;
+    global $html_end;
+    global $html_table_start;
+    
+    // head
+    echo $html_head;
+    echo "<p>Testing variant:  ";
+    switch ($opts->variant) {
+        case Variant::BOTH:
+            echo "Both";
+            break;
+        case Variant::PARSE_ONLY:
+            echo "Parser";
+            break;
+        default:
+            echo "Interpret";
+            // must be int only
+            break;
+    }
+    echo "</p>";
+    
+    echo "<p> Tests passed:   ";
+    $count = count(array_filter($tests, function (TestResult $test) {
+        return $test->result == Result::PASSED;
+    }));
+    $count_total = count($tests);
+    $percent = $count / $count_total * 100;
+    
+    echo "{$count}/{$count_total}  ({$percent}%)</p>";
+    
+    //now print table with tests
+    echo $html_table_start;
+    foreach ($tests as $test) {
+        // color
+        switch ($test->result) {
+            case Result::PASSED:
+                echo "<tr><td class='table_passed'>";
+                break;
+            default:
+                echo "<tr><td class='table_failed'>";
+                break;
+        }
+        echo "</td>";
+        
+        // result
+        echo "<td>";
+        switch ($test->result) {
+            case Result::PASSED:
+                echo "Passed";
+                break;
+            case Result::WRONG_RC:
+                echo "Wrong return code";
+                break;
+            case Result::WRONG_OUT:
+                echo "Wrong output";
+                break;
+        }
+        echo "</td>";
+        
+        // name
+        echo "<td>{$test->name}</td>";
+        
+        // expected RC
+        echo "<td align='center'>{$test->expected_rc}</td>";
+        
+        // real RC
+        echo "<td align='center'>{$test->got_rc}</td>";
+        echo "</tr>";
+    }
+    echo "</table>";
+    echo $html_end;
 }
 
 class Commands {
@@ -322,6 +400,7 @@ class ExecResult {
 }
 
 class TestResult {
+    public string $name = "";
     public int $result = Result::PASSED;
     public int $expected_rc;
     public int $got_rc;
