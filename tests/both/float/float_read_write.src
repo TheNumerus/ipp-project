@@ -1,0 +1,5 @@
+.ippcode20
+DEFVAR GF@temp
+READ GF@temp float
+break
+WRITE GF@temp

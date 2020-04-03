@@ -89,9 +89,9 @@ def check_xml(program):
     # check root node
     if program.get("language") != "IPPcode20" or program.tag != "program":
         Error.ERR_XML_STRUCT.exit()
-    if program.get("name") != None:
+    if program.get("name") is not None:
         eprint("Name:   " + program.get("name"))
-    if program.get("description") != None:
+    if program.get("description") is not None:
         eprint("Desc:   " + program.get("description"))
     
     orders = set()
@@ -129,7 +129,7 @@ def check_xml(program):
 
             if opcodes[opcode][i] == ArgType.SYMBOL:
                 # check symbols
-                if arg_type == "var" or arg_type == "string" or arg_type == "nil" or arg_type == "bool" or arg_type == "int":
+                if arg_type == "var" or arg_type == "string" or arg_type == "nil" or arg_type == "bool" or arg_type == "int" or arg_type == "float":
                     pass
                 else:
                     Error.ERR_XML_STRUCT.exit()
@@ -153,11 +153,13 @@ def check_xml(program):
             elif arg_type == "bool":
                 pattern = re.compile(r"^(true|false)$")
             elif arg_type == "int":
-                pattern = re.compile(r"^[-]?[0-9]+$")
+                pattern = re.compile(r"^[-+]?[0-9]+$")
+            elif arg_type == "float":
+                pattern = re.compile(r"^0x[0-9]\.[0-9]*p\+[0-9]$")
             elif arg_type == "label":
                 pattern = re.compile(r"^[_\-$&%*!?a-zA-Z][\-$&%*!?\w]*$")
             elif arg_type == "type":
-                pattern = re.compile(r"^(bool|string|int)$")
+                pattern = re.compile(r"^(bool|string|int|float)$")
             else:
                 Error.ERR_XML_STRUCT.exit()
 
@@ -188,18 +190,19 @@ class OpType(Enum):
     ADD = 0,
     SUB = 1
     MUL = 2,
-    IDIV = 3
+    IDIV = 3,
+    DIV = 4
 
 
 class CompOpType(Enum):
     LESSER = 0,
     GREATER = 1,
-    EQUAL = 2
+    EQUAL = 2,
 
 
 class LogicOpType(Enum):
     AND = 0
-    OR = 1
+    OR = 1,
 
 
 class VarType(Enum):
@@ -207,7 +210,8 @@ class VarType(Enum):
     INT = 1,
     STRING = 2,
     NIL = 3,
-    UNDEF = 4
+    UNDEF = 4,
+    FLOAT = 5,
     
     @staticmethod
     def from_str(string):
@@ -219,6 +223,8 @@ class VarType(Enum):
             return VarType.NIL
         elif string == "string":
             return VarType.STRING
+        elif string == "float":
+            return VarType.FLOAT
         else:
             Error.ERR_INTERNAL.exit()
 
@@ -242,6 +248,8 @@ class Var:
             value = None
         elif var_type == VarType.BOOL:
             value = value == "true"
+        elif var_type == VarType.FLOAT:
+            value = float.fromhex(value)
         else:
             Error.ERR_INTERNAL.exit()
         return Var(var_type, value)
@@ -271,7 +279,7 @@ class Program:
             "PUSHFRAME": self.push_frame,
             "POPFRAME": self.pop_frame,
             "DEFVAR": self.defvar,
-            "MOVE" : self.move,
+            "MOVE": self.move,
             "WRITE": self.write,
             "EXIT": self.exit,
             "PUSHS": self.push,
@@ -283,6 +291,7 @@ class Program:
             "ADD": lambda: self.math(op=OpType.ADD),
             "SUB": lambda: self.math(op=OpType.SUB),
             "MUL": lambda: self.math(op=OpType.MUL),
+            "DIV": lambda: self.math(op=OpType.DIV),
             "IDIV": lambda: self.math(op=OpType.IDIV),
             "READ": self.read,
             "CALL": self.call,
@@ -298,6 +307,8 @@ class Program:
             "LABEL": self.label_op,
             "INT2CHAR": self.int_to_char,
             "STRI2INT": self.stri_to_int,
+            "INT2FLOAT": self.int_to_float,
+            "FLOAT2INT": self.float_to_int,
             "CONCAT": self.concat,
             "STRLEN": self.strlen,
             "GETCHAR": self.get_char,
@@ -417,6 +428,8 @@ class Program:
             val_to_write = "true" if var.value else "false"
         elif var.var_type == VarType.NIL:
             val_to_write = ""
+        elif var.var_type == VarType.FLOAT:
+            val_to_write = var.value.hex()
         else:
             # must be `VarType.UNDEF`
             Error.ERR_MISSING_VALUE.exit()
@@ -473,6 +486,8 @@ class Program:
                 dest_var.value = "int"
             elif src_var.var_type == VarType.BOOL:
                 dest_var.value = "bool"
+            elif src_var.var_type == VarType.FLOAT:
+                dest_var.value = "float"
             else:
                 Error.ERR_XML_STRUCT.exit()   
         else:
@@ -485,7 +500,7 @@ class Program:
             Error.ERR_SEMANTIC.exit()
         self.ip = self.labels[label]
 
-    def jumpif(self,*, equal:bool):
+    def jumpif(self, *, equal: bool):
         (_, label), (type_1, value_1), (type_2, value_2) = self.fetch_args()
 
         if label not in self.labels:
@@ -504,14 +519,14 @@ class Program:
         else:
             self.ip += 1
 
-    def math(self,*, op: OpType):
+    def math(self, *, op: OpType):
         (_, target), (type_1, value_1), (type_2, value_2) = self.fetch_args()
         target = self.symbol_to_var(target)
 
         var_1 = self.arg_to_var(type_1, value_1)
         var_2 = self.arg_to_var(type_2, value_2)
 
-        if var_1.var_type != VarType.INT or var_2.var_type != VarType.INT:
+        if var_1.var_type != var_2.var_type or (var_1.var_type != VarType.INT and var_1.var_type != VarType.FLOAT):
             Error.ERR_OP_TYPE.exit()
         
         if op == OpType.ADD:
@@ -520,8 +535,14 @@ class Program:
             target.value = var_1.value - var_2.value
         elif op == OpType.MUL:
             target.value = var_1.value * var_2.value
+        elif op == OpType.DIV:
+            if var_1.var_type != VarType.FLOAT or var_2.var_type != VarType.FLOAT:
+                Error.ERR_OP_TYPE.exit()
+            target.value = var_1.value * var_2.value
         else:
             # must be `IDIV`
+            if var_1.var_type != VarType.INT or var_2.var_type != VarType.INT:
+                Error.ERR_OP_TYPE.exit()
             target.value = var_1.value // var_2.value
         target.var_type = VarType.INT
         self.ip += 1
@@ -546,7 +567,12 @@ class Program:
                 error = True
                 i = None
         else:
-            pass
+            # must be float
+            try:
+                i = float.fromhex(i)
+            except ValueError:
+                error = True
+                i = None
         var.value = i
         if error:
             var.var_type = VarType.NIL
@@ -628,6 +654,7 @@ class Program:
         eprint("global: " + str(self.global_frame))
         eprint("stack: " + str(self.data_stack))
         eprint("")
+        self.ip += 1
 
     def label_op(self):
         self.ip += 1
@@ -718,6 +745,38 @@ class Program:
         except IndexError:
             Error.ERR_STRING.exit()
         
+        self.ip += 1
+
+    def int_to_float(self):
+        (_, target), (src_type, src_value) = self.fetch_args()
+        target = self.symbol_to_var(target)
+        src = self.arg_to_var(src_type, src_value)
+        if src.var_type != VarType.INT:
+            Error.ERR_OP_TYPE.exit()
+
+        try:
+            fl = float(src.value)
+        except ValueError:
+            Error.ERR_STRING.exit()
+
+        target.value = fl
+        target.var_type = VarType.FLOAT
+        self.ip += 1
+
+    def float_to_int(self):
+        (_, target), (src_type, src_value) = self.fetch_args()
+        target = self.symbol_to_var(target)
+        src = self.arg_to_var(src_type, src_value)
+        if src.var_type != VarType.FLOAT:
+            Error.ERR_OP_TYPE.exit()
+
+        try:
+            i = int(src.value)
+        except ValueError:
+            Error.ERR_STRING.exit()
+
+        target.value = i
+        target.var_type = VarType.INT
         self.ip += 1
 
     def execute(self):

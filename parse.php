@@ -20,12 +20,14 @@ const OPCODE_ARGS = [
     'CALL' =>   [1, "label"],
     'JUMP' =>   [1, "label"],
 
-    'MOVE' =>     [2, "var", "symbol"],
-    'INT2CHAR' => [2, "var", "symbol"],
-    'STRLEN' =>   [2, "var", "symbol"],
-    'TYPE'=>      [2, "var", "symbol"],
-    'NOT' =>      [2, "var", "symbol"],
-    'READ' =>     [2, "var", "type"],
+    'MOVE' =>      [2, "var", "symbol"],
+    'INT2CHAR' =>  [2, "var", "symbol"],
+    'STRLEN' =>    [2, "var", "symbol"],
+    'TYPE'=>       [2, "var", "symbol"],
+    'NOT' =>       [2, "var", "symbol"],
+    'INT2FLOAT' => [2, "var", "symbol"],
+    'FLOAT2INT' => [2, "var", "symbol"],
+    'READ' =>      [2, "var", "type"],
 
     'CONCAT' =>    [3, "var", "symbol", "symbol"],
     'GETCHAR' =>   [3, "var", "symbol", "symbol"],
@@ -33,6 +35,7 @@ const OPCODE_ARGS = [
     'ADD' =>       [3, "var", "symbol", "symbol"],
     'SUB' =>       [3, "var", "symbol", "symbol"],
     'MUL' =>       [3, "var", "symbol", "symbol"],
+    'DIV' =>       [3, "var", "symbol", "symbol"],
     'IDIV' =>      [3, "var", "symbol", "symbol"],
     'LT' =>        [3, "var", "symbol", "symbol"],
     'GT' =>        [3, "var", "symbol", "symbol"],
@@ -200,7 +203,7 @@ function check_symb(string $symb, $parent, int $num) {
     //symbol can be variable or constant
     if (preg_match('/^(GF|TF|LF)@/', $symb)) {
         check_var($symb, $parent, $num);
-    } else if (preg_match('/^(int|bool|string|nil)@/', $symb, $matches)) {
+    } else if (preg_match('/^(int|bool|string|float|nil)@/', $symb, $matches)) {
         $child = $parent->addChild("arg" . $num);
         $child->addAttribute("type", $matches[1]);
         $arg = "arg" . $num;
@@ -222,6 +225,11 @@ function check_symb(string $symb, $parent, int $num) {
             break;
             case "nil":
                 if (!preg_match('/@(nil)$/', $symb, $str_match)) {
+                    return_error(Err::OTHER);
+                }
+            break;
+            case "float":
+                if (!preg_match('/@(0x[0-9]\.[0-9]*p\+[0-9])$/', $symb, $str_match)) {
                     return_error(Err::OTHER);
                 }
             break;
@@ -247,7 +255,7 @@ function check_label(string $label, $parent, int $num) {
 }
 
 function check_type(string $type, $parent, int $num) {
-    if (preg_match('/^(string|int|bool)$/', $type)) {
+    if (preg_match('/^(string|int|bool|float)$/', $type)) {
         $child = $parent->addChild("arg" . $num);
         $child->addAttribute("type", "type");
         $arg = "arg" . $num;

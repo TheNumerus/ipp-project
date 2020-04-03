@@ -6,4 +6,5 @@ LABEL start
 WRITE TF@counter
 WRITE string@\010
 IDIV TF@counter TF@counter int@2
+BREAK
 JUMPIFNEQ start TF@counter int@1

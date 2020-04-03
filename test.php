@@ -165,12 +165,14 @@ function run_test(string $test_path, TestOpts $opts) :TestResult {
         $interpret_result = Commands::exec_interpret($opts, $temp_result_path, $input_path);
         $test_result->got_rc = $interpret_result->ret_val;
         if ($interpret_result->ret_val != $rc) {
+            unlink($temp_result_path);
             $test_result->result = Result::WRONG_RC;
             return $test_result;
         }
 
         // check if test was supposed to fail
         if ($interpret_result->ret_val != 0) {
+            unlink($temp_result_path);
             return $test_result;
         }
 
@@ -299,7 +301,7 @@ function print_html(TestOpts $opts, array $tests) {
         return $test->result == Result::PASSED;
     }));
     $count_total = count($tests);
-    $percent = $count / $count_total * 100;
+    $percent = number_format($count / $count_total * 100, 2);
     
     echo "{$count}/{$count_total}  ({$percent}%)</p>";
     
