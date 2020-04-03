@@ -1,14 +1,16 @@
-from enum import Enum, IntEnum
-import xml.etree.ElementTree as ET
+from enum import IntEnum
+import xml.etree.ElementTree as Et
 import sys
 import re
 from helper import *
 from copy import copy, deepcopy
 
+
 def eprint(*args):
     for arg in args:
         print(arg, file=sys.stderr, end=" ")
     print("", file=sys.stderr)
+
 
 class Error(IntEnum):
     ERR_ARGS = 10
@@ -24,13 +26,16 @@ class Error(IntEnum):
     ERR_OP_VALUE = 57
     ERR_STRING = 58
     ERR_INTERNAL = 99
+
     def exit(self):
         eprint("Error: " + self.name)
         exit(self)
 
+
 def print_help():
     for string in help_strings:
         print(string)
+
 
 def parse_args():
     args = sys.argv[1:]
@@ -160,6 +165,7 @@ def check_xml(program):
             if match is None:
                 Error.ERR_XML_STRUCT.exit()
 
+
 def unescape_string(string):
     if string is None:
         return ""
@@ -177,20 +183,24 @@ def unescape_string(string):
             i += 1
     return escaped
 
+
 class OpType(Enum):
     ADD = 0,
     SUB = 1
     MUL = 2,
     IDIV = 3
 
+
 class CompOpType(Enum):
     LESSER = 0,
     GREATER = 1,
     EQUAL = 2
 
+
 class LogicOpType(Enum):
     AND = 0
     OR = 1
+
 
 class VarType(Enum):
     BOOL = 0,
@@ -211,6 +221,7 @@ class VarType(Enum):
             return VarType.STRING
         else:
             Error.ERR_INTERNAL.exit()
+
 
 class Var:
     def __init__(self, var_type: VarType, value):
@@ -234,6 +245,7 @@ class Var:
         else:
             Error.ERR_INTERNAL.exit()
         return Var(var_type, value)
+
 
 class Program:
     def __init__(self, program):
@@ -324,7 +336,7 @@ class Program:
             return name in self.frames[-1]
         else:
             # must be "TF"
-            if self.temp_frame == None:
+            if self.temp_frame is None:
                 Error.ERR_FRAME_NOT_FOUND.exit()
             return name in self.temp_frame
 
@@ -352,7 +364,7 @@ class Program:
         self.ip += 1
 
     def push_frame(self):
-        if self.temp_frame == None:
+        if self.temp_frame is None:
             Error.ERR_FRAME_NOT_FOUND.exit()
         self.frames.append(self.temp_frame)
         self.temp_frame = None
@@ -716,16 +728,18 @@ class Program:
             else:
                 self.handlers[opcode]()
 
+
 def main():
     src = parse_args()
     code = src.read()
     try:
-        xml = ET.fromstring(code)
-    except ET.ParseError:
+        xml = Et.fromstring(code)
+    except Et.ParseError:
         Error.ERR_XML_PARSE.exit()   
     check_xml(xml)
     program = Program(xml)
     program.execute()
+
 
 if __name__ == "__main__":
     main()

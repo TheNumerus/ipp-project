@@ -8,10 +8,13 @@ $style = "
     --green:#a3be8c;
     --red:#bf616a;
 }
+
 body {
     font-family: sans-serif;
     background-color: #ECEFF4;
     color: var(--fg-color);
+    display: flex;
+    justify-content:center; 
 }
 
 h1 {
@@ -28,7 +31,7 @@ thead {
 
 table {
     border-collapse: collapse;
-    margin-top: 40px;
+    margin-top: 20px;
     width: 100%;
 }
 
@@ -46,11 +49,37 @@ td, th {
     background-color: var(--red);
 }
 
-.container {
-    max-width: 960px;
-    margin: auto;
+.hor {
+    display: flex;
+    justify-content: space-between;
+}
+
+p {
+    margin: 6px 0;
 }
 </style>
+";
+
+$script = "
+<script>
+// reset after page reload
+window.onload = () => {
+    document.getElementById('filter').checked = false
+}
+
+function filter() {
+    let checkbox = document.getElementById('filter').checked
+    let visibility;
+    if (checkbox) {
+        visibility = 'collapse'
+    } else {
+        visibility = 'visible'
+    }
+    for (const o of document.querySelectorAll('.row_passed')) {
+        o.style.visibility = visibility
+    }
+}
+</script>
 ";
 
 $html_head = "
@@ -59,7 +88,9 @@ $html_head = "
 <head>
 <title>IPPcode20 test results</title>
 <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+<meta charset='UTF-8'/>
 {$style}
+{$script}
 </head>
 <body>
 <div class='container'>

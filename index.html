@@ -4,6 +4,7 @@
 <head>
 <title>IPPcode20 test results</title>
 <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+<meta charset='UTF-8'/>
 
 <style>
 
@@ -12,10 +13,13 @@
     --green:#a3be8c;
     --red:#bf616a;
 }
+
 body {
     font-family: sans-serif;
     background-color: #ECEFF4;
     color: var(--fg-color);
+    display: flex;
+    justify-content:center; 
 }
 
 h1 {
@@ -32,7 +36,7 @@ thead {
 
 table {
     border-collapse: collapse;
-    margin-top: 40px;
+    margin-top: 20px;
     width: 100%;
 }
 
@@ -50,17 +54,44 @@ td, th {
     background-color: var(--red);
 }
 
-.container {
-    max-width: 960px;
-    margin: auto;
+.hor {
+    display: flex;
+    justify-content: space-between;
+}
+
+p {
+    margin: 6px 0;
 }
 </style>
+
+
+<script>
+// reset after page reload
+window.onload = () => {
+    document.getElementById('filter').checked = false
+}
+
+function filter() {
+    let checkbox = document.getElementById('filter').checked
+    let visibility;
+    if (checkbox) {
+        visibility = 'collapse'
+    } else {
+        visibility = 'visible'
+    }
+    for (const o of document.querySelectorAll('.row_passed')) {
+        o.style.visibility = visibility
+    }
+}
+</script>
 
 </head>
 <body>
 <div class='container'>
 <h1>IPPcode20 test results</h1>
-<p>Testing variant:  Both</p><p> Tests passed:   8/8  (100%)</p>
+<p>Testing variant:  Both</p><div class='hor'><p> Tests passed:   8/8  (100%)</p>
+        <p><input type='checkbox' id='filter' onclick='filter()'> Filter passed tests</p>
+    </div>
 <table>
 <thead>
 <tr>
@@ -71,7 +102,7 @@ td, th {
 <th>Test RC</th>
 </tr>
 </thead>
-<tr><td class='table_passed'></td><td>Passed</td><td>tests/both/call_stack/call_stack.src</td><td align='center'>0</td><td align='center'>0</td></tr><tr><td class='table_passed'></td><td>Passed</td><td>tests/both/compare/compare.src</td><td align='center'>0</td><td align='center'>0</td></tr><tr><td class='table_passed'></td><td>Passed</td><td>tests/both/data_stack/data_stack.src</td><td align='center'>0</td><td align='center'>0</td></tr><tr><td class='table_passed'></td><td>Passed</td><td>tests/both/fail/fail.src</td><td align='center'>21</td><td align='center'>21</td></tr><tr><td class='table_passed'></td><td>Passed</td><td>tests/both/frames/frames.src</td><td align='center'>0</td><td align='center'>0</td></tr><tr><td class='table_passed'></td><td>Passed</td><td>tests/both/input/input.src</td><td align='center'>0</td><td align='center'>0</td></tr><tr><td class='table_passed'></td><td>Passed</td><td>tests/both/jump_nequal/jump_nequal.src</td><td align='center'>0</td><td align='center'>0</td></tr><tr><td class='table_passed'></td><td>Passed</td><td>tests/both/write/write.src</td><td align='center'>0</td><td align='center'>0</td></tr></table>
+<tr class='row_passed'><td class='table_passed'/><td>Passed</td><td>tests/both/call_stack/call_stack.src</td><td align='center'>0</td><td align='center'>0</td></tr><tr class='row_passed'><td class='table_passed'/><td>Passed</td><td>tests/both/compare/compare.src</td><td align='center'>0</td><td align='center'>0</td></tr><tr class='row_passed'><td class='table_passed'/><td>Passed</td><td>tests/both/data_stack/data_stack.src</td><td align='center'>0</td><td align='center'>0</td></tr><tr class='row_passed'><td class='table_passed'/><td>Passed</td><td>tests/both/fail/fail.src</td><td align='center'>21</td><td align='center'>21</td></tr><tr class='row_passed'><td class='table_passed'/><td>Passed</td><td>tests/both/frames/frames.src</td><td align='center'>0</td><td align='center'>0</td></tr><tr class='row_passed'><td class='table_passed'/><td>Passed</td><td>tests/both/input/input.src</td><td align='center'>0</td><td align='center'>0</td></tr><tr class='row_passed'><td class='table_passed'/><td>Passed</td><td>tests/both/jump_nequal/jump_nequal.src</td><td align='center'>0</td><td align='center'>0</td></tr><tr class='row_passed'><td class='table_passed'/><td>Passed</td><td>tests/both/write/write.src</td><td align='center'>0</td><td align='center'>0</td></tr></table>
 </div>
 </body>
 </html>

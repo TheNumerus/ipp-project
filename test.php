@@ -292,6 +292,8 @@ function print_html(TestOpts $opts, array $tests) {
     }
     echo "</p>";
     
+    echo "<div class='hor'>";
+    
     echo "<p> Tests passed:   ";
     $count = count(array_filter($tests, function (TestResult $test) {
         return $test->result == Result::PASSED;
@@ -301,19 +303,25 @@ function print_html(TestOpts $opts, array $tests) {
     
     echo "{$count}/{$count_total}  ({$percent}%)</p>";
     
+    // filter button
+    echo "
+        <p><input type='checkbox' id='filter' onclick='filter()'> Filter passed tests</p>
+    ";
+    
+    echo "</div>";
+    
     //now print table with tests
     echo $html_table_start;
     foreach ($tests as $test) {
         // color
         switch ($test->result) {
             case Result::PASSED:
-                echo "<tr><td class='table_passed'>";
+                echo "<tr class='row_passed'><td class='table_passed'/>";
                 break;
             default:
-                echo "<tr><td class='table_failed'>";
+                echo "<tr><td class='table_failed'/>";
                 break;
         }
-        echo "</td>";
         
         // result
         echo "<td>";
