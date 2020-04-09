@@ -1,171 +1,11 @@
-from enum import IntEnum
 import xml.etree.ElementTree as Et
-import sys
-import re
-from helper import *
 from copy import copy, deepcopy
 
-
-def eprint(*args):
-    for arg in args:
-        print(arg, file=sys.stderr, end=" ")
-    print("", file=sys.stderr)
-
-
-class Error(IntEnum):
-    ERR_ARGS = 10
-    ERR_INPUT = 11
-    ERR_OUTPUT = 12
-    ERR_XML_PARSE = 31
-    ERR_XML_STRUCT = 32
-    ERR_SEMANTIC = 52
-    ERR_OP_TYPE = 53
-    ERR_VAR_NOT_FOUND = 54
-    ERR_FRAME_NOT_FOUND = 55
-    ERR_MISSING_VALUE = 56
-    ERR_OP_VALUE = 57
-    ERR_STRING = 58
-    ERR_INTERNAL = 99
-
-    def exit(self):
-        eprint("Error: " + self.name)
-        exit(self)
-
-
-def print_help():
-    for string in help_strings:
-        print(string)
-
-
-def parse_args():
-    args = sys.argv[1:]
-    inp = sys.stdin
-    src = sys.stdin
-    if len(args) == 1:
-        if args[0] == "--help":
-            print_help()
-            exit(0)
-        else:
-            parts = re.split(r'[=]', args[0])
-            if len(parts) != 2:
-                Error.ERR_ARGS.exit()
-            if parts[0] == "--source":
-                try:
-                    src = open(parts[1])
-                except:
-                    Error.ERR_INPUT.exit()
-            elif parts[0] == "--input":
-                try:
-                    inp = open(parts[1])
-                except:
-                    Error.ERR_INPUT.exit()
-            else:
-                Error.ERR_ARGS.exit()
-    elif len(args) == 2:
-        parts_first = re.split(r'[=]', args[0])
-        parts_second = re.split(r'[=]', args[1])
-        if len(parts_first) != 2 or len(parts_second) != 2:
-            Error.ERR_ARGS.exit()
-        if parts_first[0] == "--source" and parts_second[0] == "--input":
-            try:
-                src = open(parts_first[1])
-                inp = open(parts_second[1])
-            except:
-                Error.ERR_INPUT.exit()
-        elif parts_first[0] == "--input" and parts_second[0] == "--source":
-            try:
-                inp = open(parts_first[1])
-                src = open(parts_second[1])
-            except:
-                Error.ERR_INPUT.exit()
-        else:
-            Error.ERR_ARGS.exit()
-    else:
-        Error.ERR_ARGS.exit()
-    sys.stdin = inp
-    return src
-
-def check_xml(program):
-    # check root node
-    if program.get("language") != "IPPcode20" or program.tag != "program":
-        Error.ERR_XML_STRUCT.exit()
-    if program.get("name") is not None:
-        eprint("Name:   " + program.get("name"))
-    if program.get("description") is not None:
-        eprint("Desc:   " + program.get("description"))
-    
-    orders = set()
-    
-    for instr in program:
-        opcode = instr.get("opcode")
-        order = instr.get("order")
-        # check for invalid structure
-        if instr.tag != "instruction" or order is None or opcode is None:
-            Error.ERR_XML_STRUCT.exit()
-
-        # check duplicate orders
-        if order in orders:
-            Error.ERR_XML_STRUCT.exit()
-        orders.add(order)
-
-        # check unknown opcode
-        if opcode not in opcodes:
-            Error.ERR_XML_STRUCT.exit()
-
-        # check corrupted opcode
-        if len(instr) != len(opcodes[opcode]):
-            Error.ERR_XML_STRUCT.exit()
-        
-        # check opcode arg nodes
-        for i in range(len(opcodes[opcode])):
-            arg = instr.find("arg" + str(i + 1))
-            if arg is None:
-                Error.ERR_XML_STRUCT.exit()
-            
-            arg_type = arg.get("type")
-
-            if arg_type is None:
-                Error.ERR_XML_STRUCT.exit()
-
-            if opcodes[opcode][i] == ArgType.SYMBOL:
-                # check symbols
-                if arg_type == "var" or arg_type == "string" or arg_type == "nil" or arg_type == "bool" or arg_type == "int" or arg_type == "float":
-                    pass
-                else:
-                    Error.ERR_XML_STRUCT.exit()
-            elif str(opcodes[opcode][i]) != arg_type:
-                # wrong type in `type` tag
-                Error.ERR_XML_STRUCT.exit()
-
-            # only string can have empty text element
-            if arg_type != "string" and arg.text is None:
-                Error.ERR_XML_STRUCT.exit()
-            elif arg_type == "string" and arg.text is None:
-                continue
-            
-            # check valid format of text element
-            if arg_type == "var":
-                pattern = re.compile(r"^(GF|TF|LF)@[_\-$&%*!?a-zA-Z][\-$&%*!?\w]*$")
-            elif arg_type == "string":
-                pattern = re.compile(r"^(([^\s#@\\]|(\\[0-9]{3}))*)$")
-            elif arg_type == "nil":
-                pattern = re.compile(r"^nil$")
-            elif arg_type == "bool":
-                pattern = re.compile(r"^(true|false)$")
-            elif arg_type == "int":
-                pattern = re.compile(r"^[-+]?[0-9]+$")
-            elif arg_type == "float":
-                pattern = re.compile(r"^0x[0-9]\.[0-9]*p\+[0-9]$")
-            elif arg_type == "label":
-                pattern = re.compile(r"^[_\-$&%*!?a-zA-Z][\-$&%*!?\w]*$")
-            elif arg_type == "type":
-                pattern = re.compile(r"^(bool|string|int|float)$")
-            else:
-                Error.ERR_XML_STRUCT.exit()
-
-            match = pattern.search(arg.text)
-            if match is None:
-                Error.ERR_XML_STRUCT.exit()
+# my imports
+from helper import *
+from error import *
+from var import *
+from parse import *
 
 
 def unescape_string(string):
@@ -203,56 +43,6 @@ class CompOpType(Enum):
 class LogicOpType(Enum):
     AND = 0
     OR = 1,
-
-
-class VarType(Enum):
-    BOOL = 0,
-    INT = 1,
-    STRING = 2,
-    NIL = 3,
-    UNDEF = 4,
-    FLOAT = 5,
-    
-    @staticmethod
-    def from_str(string):
-        if string == "bool":
-            return VarType.BOOL
-        elif string == "int":
-            return VarType.INT
-        elif string == "nil":
-            return VarType.NIL
-        elif string == "string":
-            return VarType.STRING
-        elif string == "float":
-            return VarType.FLOAT
-        else:
-            Error.ERR_INTERNAL.exit()
-
-
-class Var:
-    def __init__(self, var_type: VarType, value):
-        self.var_type = var_type
-        self.value = value
-
-    def __repr__(self):
-        return "VarType={type: " + self.var_type.name + ", value: " + str(self.value) + "}"
-    
-    @staticmethod
-    def from_symbol(var_type, value):
-        var_type = VarType.from_str(var_type)
-        if var_type == VarType.STRING:
-            pass
-        elif var_type == VarType.INT:
-            value = int(value)
-        elif var_type == VarType.NIL:
-            value = None
-        elif var_type == VarType.BOOL:
-            value = value == "true"
-        elif var_type == VarType.FLOAT:
-            value = float.fromhex(value)
-        else:
-            Error.ERR_INTERNAL.exit()
-        return Var(var_type, value)
 
 
 class Program:
@@ -312,7 +102,23 @@ class Program:
             "CONCAT": self.concat,
             "STRLEN": self.strlen,
             "GETCHAR": self.get_char,
-            "SETCHAR": self.set_char
+            "SETCHAR": self.set_char,
+            "CLEARS": self.clears,
+            "ADDS": lambda: self.maths(op=OpType.ADD),
+            "SUBS": lambda: self.maths(op=OpType.SUB),
+            "MULS": lambda: self.maths(op=OpType.MUL),
+            "IDIVS": lambda: self.maths(op=OpType.IDIV),
+            "DIVS": lambda: self.maths(op=OpType.DIV),
+            "LTS": lambda: self.comps(op=CompOpType.LESSER),
+            "GTS": lambda: self.comps(op=CompOpType.GREATER),
+            "EQS": lambda: self.comps(op=CompOpType.EQUAL),
+            "ANDS": lambda: self.logics(op=LogicOpType.AND),
+            "ORS": lambda: self.logics(op=LogicOpType.OR),
+            "NOTS": self.nots_op,
+            "INT2CHARS": self.int_to_chars,
+            "STRI2INTS": self.stri_to_ints,
+            "JUMPIFEQS": lambda: self.jumpifs(equal=True),
+            "JUMPIFNEQS": lambda: self.jumpifs(equal=False),
         }
 
         self.ip = 0
@@ -369,6 +175,11 @@ class Program:
             return self.symbol_to_var(symbol_value)
         else:
             return Var.from_symbol(symbol_type, symbol_value)
+
+    def stack_pop(self) -> Var:
+        if len(self.data_stack) == 0:
+            Error.ERR_MISSING_VALUE.exit()
+        return self.data_stack.pop()
 
     def create_frame(self):
         self.temp_frame = {}
@@ -469,6 +280,10 @@ class Program:
         var.value = pop.value
         self.ip += 1
 
+    def clears(self):
+        self.data_stack = []
+        self.ip += 1
+
     def type_op(self):
         (_, dest_loc), (src_type, src_val) = self.fetch_args()
         dest_var = self.symbol_to_var(dest_loc)
@@ -503,11 +318,22 @@ class Program:
     def jumpif(self, *, equal: bool):
         (_, label), (type_1, value_1), (type_2, value_2) = self.fetch_args()
 
-        if label not in self.labels:
-            Error.ERR_SEMANTIC.exit()
-
         var_1 = self.arg_to_var(type_1, value_1)
         var_2 = self.arg_to_var(type_2, value_2)
+
+        self._jumpif_op(var_1, var_2, label, equal)
+
+    def jumpifs(self, *, equal: bool):
+        _, label = self.fetch_args()[0]
+
+        var_2 = self.stack_pop()
+        var_1 = self.stack_pop()
+
+        self._jumpif_op(var_1, var_2, label, equal)
+
+    def _jumpif_op(self, var_1: Var, var_2: Var, label: str, equal: bool):
+        if label not in self.labels:
+            Error.ERR_SEMANTIC.exit()
 
         if var_1.var_type != var_2.var_type and var_1.var_type != VarType.NIL and var_2.var_type != VarType.NIL:
             Error.ERR_OP_TYPE.exit()
@@ -526,9 +352,25 @@ class Program:
         var_1 = self.arg_to_var(type_1, value_1)
         var_2 = self.arg_to_var(type_2, value_2)
 
+        Program._math_op(var_1, var_2, target, op)
+
+        self.ip += 1
+
+    def maths(self, *, op: OpType):
+        target = Var(VarType.UNDEF, None)
+
+        var_2 = self.stack_pop()
+        var_1 = self.stack_pop()
+
+        Program._math_op(var_1, var_2, target, op)
+        self.data_stack.append(target)
+        self.ip += 1
+
+    @staticmethod
+    def _math_op(var_1: Var, var_2: Var, target: Var, op: OpType):
         if var_1.var_type != var_2.var_type or (var_1.var_type != VarType.INT and var_1.var_type != VarType.FLOAT):
             Error.ERR_OP_TYPE.exit()
-        
+
         if op == OpType.ADD:
             target.value = var_1.value + var_2.value
         elif op == OpType.SUB:
@@ -538,14 +380,18 @@ class Program:
         elif op == OpType.DIV:
             if var_1.var_type != VarType.FLOAT or var_2.var_type != VarType.FLOAT:
                 Error.ERR_OP_TYPE.exit()
-            target.value = var_1.value * var_2.value
+            if var_2.value == 0.0:
+                Error.ERR_OP_VALUE.exit()
+            target.value = var_1.value / var_2.value
         else:
             # must be `IDIV`
             if var_1.var_type != VarType.INT or var_2.var_type != VarType.INT:
                 Error.ERR_OP_TYPE.exit()
+            if var_2.value == 0:
+                Error.ERR_OP_VALUE.exit()
             target.value = var_1.value // var_2.value
-        target.var_type = VarType.INT
-        self.ip += 1
+        target.var_type = var_1.var_type
+        return target
 
     def read(self):
         (_, target), (_, src_type) = self.fetch_args()
@@ -597,10 +443,27 @@ class Program:
         target = self.symbol_to_var(target)
         var_1 = self.arg_to_var(type_1, value_1)
         var_2 = self.arg_to_var(type_2, value_2)
-        
+
+        Program._comp_op(var_1, var_2, target, op)
+
+        self.ip += 1
+
+    def comps(self, *, op: CompOpType):
+        target = Var(VarType.UNDEF, None)
+
+        var_2 = self.stack_pop()
+        var_1 = self.stack_pop()
+
+        Program._comp_op(var_1, var_2, target, op)
+
+        self.data_stack.append(target)
+        self.ip += 1
+
+    @staticmethod
+    def _comp_op(var_1: Var, var_2: Var, target: Var, op: CompOpType):
         if (var_1.var_type == VarType.NIL or var_2.var_type == VarType.NIL) and op != CompOpType.EQUAL:
             Error.ERR_OP_TYPE.exit()
-        
+
         target.var_type = VarType.BOOL
         if var_1.var_type == var_2.var_type and var_1 != VarType.NIL:
             if op == CompOpType.LESSER:
@@ -612,7 +475,6 @@ class Program:
                 target.value = var_1.value == var_2.value
         else:
             target.value = False
-        self.ip += 1
 
     def logic(self, *, op: LogicOpType):
         (_, target), (type_1, value_1), (type_2, value_2) = self.fetch_args()
@@ -620,6 +482,22 @@ class Program:
         var_1 = self.arg_to_var(type_1, value_1)
         var_2 = self.arg_to_var(type_2, value_2)
 
+        Program._logic_op(var_1, var_2, target, op)
+
+        self.ip += 1
+
+    def logics(self, *, op: LogicOpType):
+        target = Var(VarType.UNDEF, None)
+        var_2 = self.stack_pop()
+        var_1 = self.stack_pop()
+
+        Program._logic_op(var_1, var_2, target, op)
+
+        self.data_stack.append(target)
+        self.ip += 1
+
+    @staticmethod
+    def _logic_op(var_1: Var, var_2: Var, target: Var, op: LogicOpType):
         if var_1.var_type == var_2.var_type and var_1.var_type == VarType.BOOL:
             target.var_type = VarType.BOOL
             if op == LogicOpType.AND:
@@ -629,7 +507,6 @@ class Program:
                 target.value = var_1.value or var_2.value
         else:
             Error.ERR_OP_TYPE.exit()
-        self.ip += 1
 
     def not_op(self):
         (_, target), (type_1, value_1) = self.fetch_args()
@@ -638,6 +515,15 @@ class Program:
         if var.var_type == VarType.BOOL:
             target.var_type = VarType.BOOL
             target.value = not var.value
+        else:
+            Error.ERR_OP_TYPE.exit()
+        self.ip += 1
+
+    def nots_op(self):
+        target = self.stack_pop()
+        if target.var_type == VarType.BOOL:
+            target.var_type = VarType.BOOL
+            target.value = not target.value
         else:
             Error.ERR_OP_TYPE.exit()
         self.ip += 1
@@ -663,34 +549,64 @@ class Program:
         (_, target), (src_type, src_value) = self.fetch_args()
         target = self.symbol_to_var(target)
         src = self.arg_to_var(src_type, src_value)
+
+        Program._int_to_char_op(src, target)
+
+        self.ip += 1
+
+    def int_to_chars(self):
+        src = self.stack_pop()
+
+        Program._int_to_char_op(src, src)
+
+        self.data_stack.append(src)
+        self.ip += 1
+
+    @staticmethod
+    def _int_to_char_op(src: Var, target: Var):
         if src.var_type != VarType.INT:
             Error.ERR_OP_TYPE.exit()
-        
+
         try:
             char = chr(src.value)
         except ValueError:
             Error.ERR_STRING.exit()
-        
+
         target.value = char
         target.var_type = VarType.STRING
-        self.ip += 1
 
     def stri_to_int(self):
         (_, target), (src_type, src_value), (index_type, index_value) = self.fetch_args()
         target = self.symbol_to_var(target)
         src = self.arg_to_var(src_type, src_value)
         index = self.arg_to_var(index_type, index_value)
+
+        Program._stri_to_int_op(target, src, index)
+
+        self.ip += 1
+
+    def stri_to_ints(self):
+        target = Var(VarType.UNDEF, None)
+        index = self.stack_pop()
+        src = self.stack_pop()
+
+        Program._stri_to_int_op(target, src, index)
+
+        self.data_stack.append(target)
+        self.ip += 1
+
+    @staticmethod
+    def _stri_to_int_op(target: Var, src: Var, index: Var):
         if src.var_type != VarType.STRING or index.var_type != VarType.INT:
             Error.ERR_OP_TYPE.exit()
-        
+
         try:
             char = ord(src.value[index.value])
         except IndexError:
             Error.ERR_STRING.exit()
-        
+
         target.value = char
         target.var_type = VarType.INT
-        self.ip += 1
 
     def concat(self):
         (_, target), (type_1, value_1), (type_2, value_2) = self.fetch_args()

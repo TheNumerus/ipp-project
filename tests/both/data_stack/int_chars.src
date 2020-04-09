@@ -1,0 +1,16 @@
+.ippcode20
+defvar GF@l
+pushs int@84
+pushs int@79
+pushs int@79
+pushs int@68
+call print_letter
+call print_letter
+call print_letter
+call print_letter
+exit int@0
+label print_letter
+int2chars
+pops GF@l
+write GF@l
+return

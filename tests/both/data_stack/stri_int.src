@@ -1,0 +1,7 @@
+.ippcode20
+pushs string@DOOT
+pushs int@0
+stri2ints
+defvar GF@t
+pops GF@t
+write GF@t

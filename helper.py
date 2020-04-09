@@ -39,22 +39,44 @@ help_strings = [
     "99 - Internal error in the script"
 ]
 
+
+def print_help():
+    for string in help_strings:
+        print(string)
+
+
 opcodes = {
     'RETURN':      [],
     'PUSHFRAME':   [],
     'POPFRAME':    [],
     'CREATEFRAME': [],
     'BREAK':       [],
+    'CLEARS':      [],
+    'ADDS':        [],
+    'SUBS':        [],
+    'MULS':        [],
+    'IDIVS':       [],
+    'DIVS':        [],
+    'LTS':         [],
+    'GTS':         [],
+    'EQS':         [],
+    'ANDS':        [],
+    'ORS':         [],
+    'NOTS':        [],
+    'INT2CHARS':   [],
+    'STRI2INTS':   [],
 
-    'DEFVAR': [ArgType.VAR],
-    'POPS':   [ArgType.VAR],
-    'WRITE':  [ArgType.SYMBOL],
-    'PUSHS':  [ArgType.SYMBOL],
-    'EXIT':   [ArgType.SYMBOL],
-    'DPRINT': [ArgType.SYMBOL],
-    'LABEL':  [ArgType.LABEL],
-    'CALL':   [ArgType.LABEL],
-    'JUMP':   [ArgType.LABEL],
+    'DEFVAR':     [ArgType.VAR],
+    'POPS':       [ArgType.VAR],
+    'WRITE':      [ArgType.SYMBOL],
+    'PUSHS':      [ArgType.SYMBOL],
+    'EXIT':       [ArgType.SYMBOL],
+    'DPRINT':     [ArgType.SYMBOL],
+    'LABEL':      [ArgType.LABEL],
+    'CALL':       [ArgType.LABEL],
+    'JUMP':       [ArgType.LABEL],
+    'JUMPIFEQS':  [ArgType.LABEL],
+    'JUMPIFNEQS': [ArgType.LABEL],
 
     'MOVE':      [ArgType.VAR, ArgType.SYMBOL],
     'INT2CHAR':  [ArgType.VAR, ArgType.SYMBOL],

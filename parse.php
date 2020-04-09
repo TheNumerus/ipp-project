@@ -9,16 +9,32 @@ const OPCODE_ARGS = [
     'POPFRAME' =>    [0],
     'CREATEFRAME' => [0],
     'BREAK' =>       [0],
+    'CLEARS' =>      [0],
+    'ADDS' =>        [0],
+    'SUBS' =>        [0],
+    'MULS' =>        [0],
+    'IDIVS' =>       [0],
+    'DIVS' =>        [0],
+    'LTS' =>         [0],
+    'GTS' =>         [0],
+    'EQS' =>         [0],
+    'ANDS' =>        [0],
+    'ORS' =>         [0],
+    'NOTS' =>        [0],
+    'INT2CHARS' =>   [0],
+    'STRI2INTS' =>   [0],
 
-    'DEFVAR' => [1, "var"],
-    'POPS' =>   [1, "var"],
-    'WRITE' =>  [1, "symbol"],
-    'PUSHS' =>  [1, "symbol"],
-    'EXIT' =>   [1, "symbol"],
-    'DPRINT' => [1, "symbol"],
-    'LABEL' =>  [1, "label"],
-    'CALL' =>   [1, "label"],
-    'JUMP' =>   [1, "label"],
+    'DEFVAR' =>     [1, "var"],
+    'POPS' =>       [1, "var"],
+    'WRITE' =>      [1, "symbol"],
+    'PUSHS' =>      [1, "symbol"],
+    'EXIT' =>       [1, "symbol"],
+    'DPRINT' =>     [1, "symbol"],
+    'LABEL' =>      [1, "label"],
+    'CALL' =>       [1, "label"],
+    'JUMP' =>       [1, "label"],
+    'JUMPIFEQS' =>  [1, "label"],
+    'JUMPIFNEQS' => [1, "label"],
 
     'MOVE' =>      [2, "var", "symbol"],
     'INT2CHAR' =>  [2, "var", "symbol"],
@@ -229,7 +245,7 @@ function check_symb(string $symb, $parent, int $num) {
                 }
             break;
             case "float":
-                if (!preg_match('/@(0x[0-9]\.[0-9]*p\+[0-9])$/', $symb, $str_match)) {
+                if (!preg_match('/@(-?0x[0-9]\.[0-9a-f]*p[+-][0-9]+)$/', $symb, $str_match)) {
                     return_error(Err::OTHER);
                 }
             break;

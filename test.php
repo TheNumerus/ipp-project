@@ -147,13 +147,14 @@ function run_test(string $test_path, TestOpts $opts) :TestResult {
     if ($opts->variant == Variant::BOTH) {
         $parse_result = Commands::exec_parse($opts, $test_path);
         $test_result->got_rc = $parse_result->ret_val;
-        if ($parse_result->ret_val != $rc) {
-            $test_result->result = Result::WRONG_RC;
+        if ($parse_result->ret_val == $rc && $test_result->expected_rc != 0) {
+            $test_result->result = Result::PASSED;
             return $test_result;
         }
 
         // check if test was supposed to fail
         if ($parse_result->ret_val != 0) {
+            $test_result->result = Result::WRONG_RC;
             return $test_result;
         }
 

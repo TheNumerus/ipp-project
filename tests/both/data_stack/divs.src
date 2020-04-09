@@ -1,0 +1,7 @@
+.ippcode20
+PUSHS float@0x1.4p+2
+pushs float@0x1.8p+1
+divs
+defvar GF@temp
+pops GF@temp
+write GF@temp

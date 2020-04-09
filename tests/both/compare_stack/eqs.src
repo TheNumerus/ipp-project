@@ -1,0 +1,7 @@
+.ippcode20
+pushs int@5
+pushs int@6
+eqs
+defvar GF@out
+pops GF@out
+write GF@out

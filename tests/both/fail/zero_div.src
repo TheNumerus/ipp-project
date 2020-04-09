@@ -1,0 +1,4 @@
+.ippcode20
+pushs int@5
+pushs int@0
+idivs

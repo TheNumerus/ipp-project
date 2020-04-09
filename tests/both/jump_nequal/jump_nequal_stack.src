@@ -1,0 +1,11 @@
+.IPPcode20
+CREATEFRAME
+DEFVAR TF@counter
+MOVE TF@counter int@64
+LABEL start
+WRITE TF@counter
+WRITE string@\010
+IDIV TF@counter TF@counter int@2
+pushs TF@counter
+pushs int@1
+JUMPIFNEQS start
