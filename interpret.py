@@ -64,6 +64,7 @@ class Program:
         self.data_stack = []
         self.call_stack = []
 
+        # monster
         self.handlers = {
             "CREATEFRAME": self.create_frame,
             "PUSHFRAME": self.push_frame,
@@ -133,14 +134,14 @@ class Program:
             raise StopIteration
         if self.stats is not None:
             self.stats.insts += 1
-            vars = 0
+            var_count = 0
             if self.temp_frame is not None:
-                vars += len(self.temp_frame)
-            vars += len(self.global_frame)
+                var_count += len(self.temp_frame)
+            var_count += len(self.global_frame)
             for frame in self.frames:
-                vars += len(frame)
-            if vars > self.stats.vars:
-                self.stats.vars = vars
+                var_count += len(frame)
+            if var_count > self.stats.vars:
+                self.stats.vars = var_count
         return self.program[self.ip]
 
     def fetch_args(self):
