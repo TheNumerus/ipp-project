@@ -46,7 +46,7 @@ class LogicOpType(Enum):
 
 
 class Program:
-    def __init__(self, program):
+    def __init__(self, program, stats: Stats):
         self.program = sorted(program, key=lambda instr: int(instr.get("order")))
 
         # check duplicate labels
@@ -121,6 +121,8 @@ class Program:
             "JUMPIFNEQS": lambda: self.jumpifs(equal=False),
         }
 
+        self.stats = stats
+
         self.ip = 0
     
     def __iter__(self):
@@ -129,6 +131,16 @@ class Program:
     def __next__(self):
         if self.ip >= len(self.program):
             raise StopIteration
+        if self.stats is not None:
+            self.stats.insts += 1
+            vars = 0
+            if self.temp_frame is not None:
+                vars += len(self.temp_frame)
+            vars += len(self.global_frame)
+            for frame in self.frames:
+                vars += len(frame)
+            if vars > self.stats.vars:
+                self.stats.vars = vars
         return self.program[self.ip]
 
     def fetch_args(self):
@@ -259,9 +271,12 @@ class Program:
             val = var.value
         else:
             Error.ERR_OP_TYPE.exit()
+            # added so pycharm wont show warning
+            return
         
         if val > 49 or val < 0:
             Error.ERR_OP_VALUE.exit()
+        self.print_stats()
         exit(val)
 
     def push(self):
@@ -571,6 +586,8 @@ class Program:
             char = chr(src.value)
         except ValueError:
             Error.ERR_STRING.exit()
+            # added so pycharm wont show warning
+            return
 
         target.value = char
         target.var_type = VarType.STRING
@@ -604,6 +621,8 @@ class Program:
             char = ord(src.value[index.value])
         except IndexError:
             Error.ERR_STRING.exit()
+            # added so pycharm wont show warning
+            return
 
         target.value = char
         target.var_type = VarType.INT
@@ -643,6 +662,8 @@ class Program:
             char = src.value[index.value]
         except IndexError:
             Error.ERR_STRING.exit()
+            # added so pycharm wont show warning
+            return
         
         target.value = char
         target.var_type = VarType.STRING
@@ -674,6 +695,8 @@ class Program:
             fl = float(src.value)
         except ValueError:
             Error.ERR_STRING.exit()
+            # added so pycharm wont show warning
+            return
 
         target.value = fl
         target.var_type = VarType.FLOAT
@@ -690,10 +713,30 @@ class Program:
             i = int(src.value)
         except ValueError:
             Error.ERR_STRING.exit()
+            # added so pycharm wont show warning
+            return
 
         target.value = i
         target.var_type = VarType.INT
         self.ip += 1
+
+    def print_stats(self):
+        if self.stats is not None:
+            try:
+                file = open(self.stats.path, 'w')
+            except OSError:
+                Error.ERR_OUTPUT.exit()
+                # added so pycharm wont show warning
+                return
+
+            for stat in self.stats.opts:
+                if stat == Stat.VARS:
+                    count = self.stats.vars
+                else:
+                    # must be `Stat.INSTS`
+                    count = self.stats.insts
+                file.write(str(count) + '\n')
+            print(self.stats)
 
     def execute(self):
         for instr in self:
@@ -702,17 +745,21 @@ class Program:
                 Error.ERR_SEMANTIC.exit()
             else:
                 self.handlers[opcode]()
+        self.print_stats()
 
 
 def main():
-    src = parse_args()
+    src, stats = parse_args()
     code = src.read()
     try:
         xml = Et.fromstring(code)
     except Et.ParseError:
-        Error.ERR_XML_PARSE.exit()   
+        Error.ERR_XML_PARSE.exit()
+        # added so pycharm wont show warning
+        return
+
     check_xml(xml)
-    program = Program(xml)
+    program = Program(xml, stats)
     program.execute()
 
 

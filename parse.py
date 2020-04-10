@@ -1,56 +1,104 @@
+from enum import Enum
+from typing import Iterable
 import re
 
 from error import *
 from helper import *
+
+arg_types = {
+    "help": False,
+    "source": True,
+    "input": True,
+    "stats": True,
+    "insts": False,
+    "vars": False
+}
+
+
+class Stat(Enum):
+    INSTS = 0,
+    VARS = 1,
+
+
+class Stats:
+    def __init__(self, path: str, opts: Iterable[Stat]):
+        self.path = path
+        self.opts = opts
+        self.insts = 0
+        self.vars = 0
+
+    def __repr__(self):
+        return 'Stats = {{path: "{self.path}", opts: "{self.opts}", insts: {self.insts}, vars: {self.vars}}}'.format(self=self)
 
 
 def parse_args():
     args = sys.argv[1:]
     inp = sys.stdin
     src = sys.stdin
-    if len(args) == 1:
-        if args[0] == "--help":
-            print_help()
-            exit(0)
-        else:
-            parts = re.split(r'[=]', args[0])
-            if len(parts) != 2:
-                Error.ERR_ARGS.exit()
-            if parts[0] == "--source":
-                try:
-                    src = open(parts[1])
-                except:
-                    Error.ERR_INPUT.exit()
-            elif parts[0] == "--input":
-                try:
-                    inp = open(parts[1])
-                except:
-                    Error.ERR_INPUT.exit()
-            else:
-                Error.ERR_ARGS.exit()
-    elif len(args) == 2:
-        parts_first = re.split(r'[=]', args[0])
-        parts_second = re.split(r'[=]', args[1])
-        if len(parts_first) != 2 or len(parts_second) != 2:
+
+    found_stats = False
+    stat_opts = []
+    stat_file = None
+
+    found_input = False
+
+    # splits argument into name and optional path
+    arg_format = re.compile(r'^--?([a-zA-Z]+)(?:$|=([\S]+))$')
+
+    for arg in args:
+        try:
+            name, path = arg_format.findall(arg)[0]
+        except IndexError:
+            # invalid argument format
             Error.ERR_ARGS.exit()
-        if parts_first[0] == "--source" and parts_second[0] == "--input":
-            try:
-                src = open(parts_first[1])
-                inp = open(parts_second[1])
-            except:
-                Error.ERR_INPUT.exit()
-        elif parts_first[0] == "--input" and parts_second[0] == "--source":
-            try:
-                inp = open(parts_first[1])
-                src = open(parts_second[1])
-            except:
-                Error.ERR_INPUT.exit()
-        else:
+            # added so pycharm wont show warning
+            return
+
+        # check for unknown arg
+        if name not in arg_types:
             Error.ERR_ARGS.exit()
-    else:
+
+        # check if path missing
+        if arg_types[name] != (len(path) != 0):
+            Error.ERR_ARGS.exit()
+
+        try:
+            if name == "help":
+                if len(args) != 1:
+                    Error.ERR_ARGS.exit()
+                print_help()
+                exit(0)
+            elif name == "source":
+                src = open(path)
+                found_input = True
+            elif name == "input":
+                inp = open(path)
+                found_input = True
+            elif name == "insts":
+                stat_opts.append(Stat.INSTS)
+            elif name == "vars":
+                stat_opts.append(Stat.VARS)
+            elif name == "stats":
+                found_stats = True
+                stat_file = path
+        except OSError:
+            Error.ERR_INPUT.exit()
+
+    # source or input was not found
+    if not found_input:
         Error.ERR_ARGS.exit()
+
+    # stats args without --stats
+    if not found_stats and len(stat_opts) != 0:
+        Error.ERR_ARGS.exit()
+
+    if found_stats:
+        stats = Stats(stat_file, stat_opts)
+    else:
+        stats = None
+
     sys.stdin = inp
-    return src
+    return src, stats
 
 
 def check_xml(program):
