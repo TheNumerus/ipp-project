@@ -8,24 +8,6 @@ from var import *
 from parse import *
 
 
-def unescape_string(string):
-    if string is None:
-        return ""
-    i = 0
-    escaped = ""
-    esc = re.compile(r"\\[0-9]{3}")
-    # somewhere, this will horribly fail
-    while i < len(string):
-        match = esc.search(string[i:i+4])
-        if match is not None:
-            escaped += chr(int(string[i+1:i+4]))
-            i += 4
-        else:
-            escaped += string[i]
-            i += 1
-    return escaped
-
-
 class OpType(Enum):
     ADD = 0,
     SUB = 1
@@ -147,7 +129,9 @@ class Program:
     def fetch_args(self):
         instr = self.program[self.ip]
         args = []
-        for arg in instr:
+        for num in range(1, len(instr) + 1):
+            key = "arg" + str(num)
+            arg = instr.find(key)
             args.append((arg.get("type"), arg.text))
         return args
 
@@ -188,6 +172,11 @@ class Program:
             return self.symbol_to_var(symbol_value)
         else:
             return Var.from_symbol(symbol_type, symbol_value)
+
+    @staticmethod
+    def check_def(variable: Var):
+        if variable.var_type == VarType.UNDEF:
+            Error.ERR_MISSING_VALUE.exit()
 
     def stack_pop(self) -> Var:
         if len(self.data_stack) == 0:
@@ -233,6 +222,7 @@ class Program:
         (_, target), (source_type, source_value) = self.fetch_args()
         target_var = self.symbol_to_var(target)
         source_var = self.arg_to_var(source_type, source_value)
+        Program.check_def(source_var)
 
         target_var.value = copy(source_var.value)
         target_var.var_type = copy(source_var.var_type)
@@ -267,6 +257,7 @@ class Program:
             val = int(symb_value)
         elif symb_type == "var":
             var = self.symbol_to_var(symb_value)
+            Program.check_def(var)
             if var.var_type != VarType.INT:
                 Error.ERR_OP_TYPE.exit()
             val = var.value
@@ -283,6 +274,7 @@ class Program:
     def push(self):
         source_type, source_value = self.fetch_args()[0]
         var = self.arg_to_var(source_type, source_value)
+        Program.check_def(var)
         self.data_stack.append(deepcopy(var))
         self.ip += 1
 
@@ -303,7 +295,6 @@ class Program:
     def type_op(self):
         (_, dest_loc), (src_type, src_val) = self.fetch_args()
         dest_var = self.symbol_to_var(dest_loc)
-        dest_var.var_type = VarType.STRING
 
         if src_type == "var":
             src_var = self.symbol_to_var(src_val)
@@ -323,6 +314,7 @@ class Program:
                 Error.ERR_XML_STRUCT.exit()   
         else:
             dest_var.value = src_type
+        dest_var.var_type = VarType.STRING
         self.ip += 1
 
     def jump(self):
@@ -351,12 +343,12 @@ class Program:
         if label not in self.labels:
             Error.ERR_SEMANTIC.exit()
 
+        Program.check_def(var_1)
+        Program.check_def(var_2)
+
         if var_1.var_type != var_2.var_type and var_1.var_type != VarType.NIL and var_2.var_type != VarType.NIL:
             Error.ERR_OP_TYPE.exit()
-        if var_1.var_type == VarType.NIL or var_2.var_type == VarType.NIL:
-            self.ip = self.labels[label]
-
-        if (var_1.value == var_2.value) ^ (not equal):
+        elif (var_1.value == var_2.value) ^ (not equal):
             self.ip = self.labels[label]
         else:
             self.ip += 1
@@ -384,6 +376,9 @@ class Program:
 
     @staticmethod
     def _math_op(var_1: Var, var_2: Var, target: Var, op: OpType):
+        Program.check_def(var_1)
+        Program.check_def(var_2)
+
         if var_1.var_type != var_2.var_type or (var_1.var_type != VarType.INT and var_1.var_type != VarType.FLOAT):
             Error.ERR_OP_TYPE.exit()
 
@@ -418,6 +413,13 @@ class Program:
         except EOFError:
             error = True
             i = None
+
+        if i is None:
+            var.var_type = VarType.NIL
+            var.value = None
+            self.ip += 1
+            return
+
         if src_type == "string":
             pass
         elif src_type == "bool":
@@ -477,6 +479,9 @@ class Program:
 
     @staticmethod
     def _comp_op(var_1: Var, var_2: Var, target: Var, op: CompOpType):
+        Program.check_def(var_1)
+        Program.check_def(var_2)
+
         if (var_1.var_type == VarType.NIL or var_2.var_type == VarType.NIL) and op != CompOpType.EQUAL:
             Error.ERR_OP_TYPE.exit()
 
@@ -489,8 +494,10 @@ class Program:
             else:
                 # must be `EQUAL`
                 target.value = var_1.value == var_2.value
-        else:
+        elif (var_1.var_type == VarType.NIL or var_2.var_type == VarType.NIL) and op == CompOpType.EQUAL:
             target.value = False
+        else:
+            Error.ERR_OP_TYPE.exit()
 
     def logic(self, *, op: LogicOpType):
         (_, target), (type_1, value_1), (type_2, value_2) = self.fetch_args()
@@ -514,6 +521,9 @@ class Program:
 
     @staticmethod
     def _logic_op(var_1: Var, var_2: Var, target: Var, op: LogicOpType):
+        Program.check_def(var_1)
+        Program.check_def(var_2)
+
         if var_1.var_type == var_2.var_type and var_1.var_type == VarType.BOOL:
             target.var_type = VarType.BOOL
             if op == LogicOpType.AND:
@@ -528,6 +538,7 @@ class Program:
         (_, target), (type_1, value_1) = self.fetch_args()
         target = self.symbol_to_var(target)
         var = self.arg_to_var(type_1, value_1)
+        Program.check_def(var)
         if var.var_type == VarType.BOOL:
             target.var_type = VarType.BOOL
             target.value = not var.value
@@ -540,6 +551,7 @@ class Program:
         if target.var_type == VarType.BOOL:
             target.var_type = VarType.BOOL
             target.value = not target.value
+            self.data_stack.append(target)
         else:
             Error.ERR_OP_TYPE.exit()
         self.ip += 1
@@ -580,6 +592,7 @@ class Program:
 
     @staticmethod
     def _int_to_char_op(src: Var, target: Var):
+        Program.check_def(src)
         if src.var_type != VarType.INT:
             Error.ERR_OP_TYPE.exit()
 
@@ -615,9 +628,14 @@ class Program:
 
     @staticmethod
     def _stri_to_int_op(target: Var, src: Var, index: Var):
+        Program.check_def(src)
+        Program.check_def(index)
         if src.var_type != VarType.STRING or index.var_type != VarType.INT:
             Error.ERR_OP_TYPE.exit()
 
+        # python can use negative indices
+        if index.value < 0:
+            Error.ERR_STRING.exit()
         try:
             char = ord(src.value[index.value])
         except IndexError:
@@ -633,8 +651,18 @@ class Program:
         target = self.symbol_to_var(target)
         var_1 = self.arg_to_var(type_1, value_1)
         var_2 = self.arg_to_var(type_2, value_2)
+
+        Program.check_def(var_1)
+        Program.check_def(var_2)
+
         if var_1.var_type != VarType.STRING or var_2.var_type != VarType.STRING:
             Error.ERR_OP_TYPE.exit()
+
+        # check empty string, because None + str is a bad idea
+        if var_1.value is None:
+            var_1.value = ""
+        if var_2.value is None:
+            var_2.value = ""
         
         target.value = var_1.value + var_2.value
         target.var_type = VarType.STRING
@@ -644,6 +672,7 @@ class Program:
         (_, target), (type_1, value_1) = self.fetch_args()
         target = self.symbol_to_var(target)
         var_1 = self.arg_to_var(type_1, value_1)
+        Program.check_def(var_1)
         if var_1.var_type != VarType.STRING:
             Error.ERR_OP_TYPE.exit()
         
@@ -656,9 +685,16 @@ class Program:
         target = self.symbol_to_var(target)
         src = self.arg_to_var(src_type, src_value)
         index = self.arg_to_var(index_type, index_value)
+
+        Program.check_def(src)
+        Program.check_def(index)
+
         if src.var_type != VarType.STRING or index.var_type != VarType.INT:
             Error.ERR_OP_TYPE.exit()
 
+        # python can use negative indices
+        if index.value < 0:
+            Error.ERR_STRING.exit()
         try:
             char = src.value[index.value]
         except IndexError:
@@ -675,11 +711,21 @@ class Program:
         target = self.symbol_to_var(target)
         index = self.arg_to_var(index_type, index_value)
         src = self.arg_to_var(src_type, src_value)
+
+        Program.check_def(target)
+        Program.check_def(src)
+        Program.check_def(index)
+
         if target.var_type != VarType.STRING or index.var_type != VarType.INT or src.var_type != VarType.STRING:
             Error.ERR_OP_TYPE.exit()
 
+        # python can use negative indices
+        if index.value < 0:
+            Error.ERR_STRING.exit()
         try:
-            target.value[index.value] = src.value[0]
+            slist = list(target.value)
+            slist[index.value] = list(src.value)[0]
+            target.value = ''.join(slist)
         except IndexError:
             Error.ERR_STRING.exit()
         
@@ -689,6 +735,9 @@ class Program:
         (_, target), (src_type, src_value) = self.fetch_args()
         target = self.symbol_to_var(target)
         src = self.arg_to_var(src_type, src_value)
+
+        Program.check_def(src)
+
         if src.var_type != VarType.INT:
             Error.ERR_OP_TYPE.exit()
 
@@ -707,6 +756,9 @@ class Program:
         (_, target), (src_type, src_value) = self.fetch_args()
         target = self.symbol_to_var(target)
         src = self.arg_to_var(src_type, src_value)
+
+        Program.check_def(src)
+
         if src.var_type != VarType.FLOAT:
             Error.ERR_OP_TYPE.exit()
 
@@ -741,7 +793,8 @@ class Program:
 
     def execute(self):
         for instr in self:
-            opcode = instr.get("opcode")
+            # opcode dict has uppercase keys
+            opcode = instr.get("opcode").upper()
             if opcode not in self.handlers:
                 Error.ERR_SEMANTIC.exit()
             else:

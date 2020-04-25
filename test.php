@@ -23,7 +23,9 @@ const ARG = [
     "int-script" => true,
     "parse-only" => false,
     "int-only" => false,
-    "jexamxml" => true
+    "jexamxml" => true,
+    "testlist" => true,
+    "match" => true,
 ];
 
 main();
@@ -42,16 +44,31 @@ function main() {
     $opts = TestOpts::parse($argc, $argv);
 
     // search for tests
-    if ($opts->recursive_search) {
-        $files = [];
-        test_scan_recursive($opts->test_path, $files);
+    if ($opts->test_list != null){
+        $files = test_list_scan($opts->test_list, $opts->recursive_search);
     } else {
-        $files = test_scan($opts->test_path);
+        if ($opts->recursive_search) {
+            $files = [];
+            test_scan_recursive($opts->test_path, $files);
+        } else {
+            $files = test_scan($opts->test_path);
+        }
     }
     
     $tests = [];
     
     foreach ($files as $input) {
+        $info = pathinfo($input);
+        if ($opts->test_regex != null) {
+            $match = preg_match($opts->test_regex, $info["filename"]);
+            if ($match === false) {
+                return_error(Err::INPUT);
+            }
+            if ($match === 0) {
+                continue;
+            }
+        }
+        
         fprintf(STDERR, "running %s", $input);
         $test_ressult = run_test($input, $opts);
         $tests[] = $test_ressult;
@@ -105,6 +122,32 @@ function test_scan_recursive(string $path, &$tests) {
     }
 
     $tests = array_merge($tests, test_scan($path));
+}
+
+function test_list_scan(string $path, bool $recursive): Array {
+    $list = fopen($path, 'r');
+    if ($list == null) {
+        return_error(Err::INPUT);
+    }
+    $files = [];
+    while(($line = fgets($list)) !== false) {
+        $line = trim($line);
+        if (!file_exists($line)) {
+            return_error(Err::INPUT);
+        }
+        if (is_dir($line)) {
+            if ($recursive) {
+                test_scan_recursive($line, $files);
+            } else {
+                $files = array_merge($files, test_scan($line));
+            }
+        } else {
+            if(preg_match('/[^\s]\.src$/', $line)) {
+                $files[] = $line;
+            }
+        }
+    }
+    return $files;
 }
 
 function run_test(string $test_path, TestOpts $opts) :TestResult {
@@ -302,7 +345,11 @@ function print_html(TestOpts $opts, array $tests) {
         return $test->result == Result::PASSED;
     }));
     $count_total = count($tests);
-    $percent = number_format($count / $count_total * 100, 2);
+    if ($count_total == 0) {
+        $percent = " - ";
+    } else {
+        $percent = number_format($count / $count_total * 100, 2);
+    }
     
     echo "{$count}/{$count_total}  ({$percent}%)</p>";
     
@@ -422,6 +469,8 @@ class TestOpts {
     public string $parser_path = "parse.php";
     public string $interpret_path = "interpret.py";
     public string $xml_test_path = "/pub/courses/ipp/jexamxml/jexamxml.jar";
+    public ?string $test_list = null;
+    public ?string $test_regex = null;
     public bool $recursive_search = false;
     public int $variant = Variant::BOTH;
 
@@ -430,6 +479,9 @@ class TestOpts {
 
         $int_only = false;
         $parse_only = false;
+        $test_list = false;
+        $dir = false;
+        
         foreach (array_slice($argv, 1) as $arg) {
             // parse arg, split into groups
             $result = preg_match( '/^-{1,2}([a-zA-Z-]*)($|=(["\'\\S.\/]+))$/', $arg, $matches);
@@ -449,11 +501,6 @@ class TestOpts {
                 return_error(Err::ARG);
             }
 
-            // if path is specified, it must be valid
-            if (ARG[$matches[1]] && !file_exists($matches[3])) {
-                return_error(Err::INPUT);
-            }
-
             switch ($matches[1]) {
                 case "help":
                     // help is exclusive with everything else
@@ -468,6 +515,11 @@ class TestOpts {
                     if (!is_dir($matches[3])) {
                         return_error(Err::ARG);
                     }
+                    // check if testlist was supplied
+                    if ($test_list) {
+                        return_error(Err::ARG);
+                    }
+                    $dir = true;
                     $opts->test_path = $matches[3];
                     break;
                 case "recursive":
@@ -506,10 +558,26 @@ class TestOpts {
                     $int_only = true;
                     $opts->variant = Variant::INT_ONLY;
                     break;
+                case "testlist":
+                    // check if dir was supplied
+                    if ($dir) {
+                        return_error(Err::ARG);
+                    }
+                    $test_list = true;
+                    $opts->test_list = $matches[3];
+                    break;
+                case "match":
+                    $opts->test_regex = $matches[3];
+                    break;
                 default:
                     // should not happen
                     return_error(Err::INTERNAL);
                     break;
+            }
+            
+            // if path is specified, it must be valid
+            if (ARG[$matches[1]] && $matches[1] != "match" && !file_exists($matches[3])) {
+                return_error(Err::INPUT);
             }
         }
         return $opts;

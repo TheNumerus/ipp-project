@@ -119,10 +119,21 @@ def check_xml(program):
         if instr.tag != "instruction" or order is None or opcode is None:
             Error.ERR_XML_STRUCT.exit()
 
+        # opcode dict has opcodes in uppercase
+        opcode = opcode.upper()
+
         # check duplicate orders
         if order in orders:
             Error.ERR_XML_STRUCT.exit()
         orders.add(order)
+
+        try:
+            # check if positive number
+            if int(order) < 1:
+                Error.ERR_XML_STRUCT.exit()
+        except ValueError:
+            # check if number
+            Error.ERR_XML_STRUCT.exit()
 
         # check unknown opcode
         if opcode not in opcodes:
@@ -171,7 +182,7 @@ def check_xml(program):
             elif arg_type == "int":
                 pattern = re.compile(r"^[-+]?[0-9]+$")
             elif arg_type == "float":
-                pattern = re.compile(r"^-?0x[0-9]\.[0-9a-f]*p[+-][0-9]+$")
+                pattern = re.compile(r"^[-+]?(?:0x)?[0-9a-f]?\.?[0-9a-f]*(?:p(?:0|[+-][0-9]+))?$")
             elif arg_type == "label":
                 pattern = re.compile(r"^[_\-$&%*!?a-zA-Z][\-$&%*!?\w]*$")
             elif arg_type == "type":

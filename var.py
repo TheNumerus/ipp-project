@@ -1,5 +1,24 @@
+import re
 from enum import Enum
 from error import *
+
+
+def unescape_string(string):
+    if string is None:
+        return ""
+    i = 0
+    escaped = ""
+    esc = re.compile(r"\\[0-9]{3}")
+    # somewhere, this will horribly fail
+    while i < len(string):
+        match = esc.search(string[i:i+4])
+        if match is not None:
+            escaped += chr(int(string[i+1:i+4]))
+            i += 4
+        else:
+            escaped += string[i]
+            i += 1
+    return escaped
 
 
 class VarType(Enum):
@@ -38,7 +57,7 @@ class Var:
     def from_symbol(var_type, value):
         var_type = VarType.from_str(var_type)
         if var_type == VarType.STRING:
-            pass
+            value = unescape_string(value)
         elif var_type == VarType.INT:
             value = int(value)
         elif var_type == VarType.NIL:

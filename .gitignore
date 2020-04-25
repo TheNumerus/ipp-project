@@ -7,3 +7,5 @@ env
 lib/
 
 .idea/
+
+.directory

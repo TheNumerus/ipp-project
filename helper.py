@@ -1,10 +1,12 @@
 from enum import Enum
 
+
 class ArgType(Enum):
     VAR = 0
     SYMBOL = 1
     LABEL = 2
     TYPE = 3
+
     def __str__(self):
         if self == ArgType.VAR:
             return "var"
